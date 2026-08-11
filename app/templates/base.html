@@ -26,6 +26,12 @@
   </header>
 
   <main class="site-main">
+    {# Flash hláška po redirectu — `pop_flash` ji zároveň smaže ze session. #}
+    {% set flash_message = pop_flash(request) %}
+    {% if flash_message %}
+    <p class="flash">{{ flash_message }}</p>
+    {% endif %}
+
     {% block content %}{% endblock %}
   </main>
 

@@ -24,6 +24,7 @@ from app.config import settings
 from app.db import SessionLocal, init_db
 from app.llm.audit import purge_older_than
 from app.routes import admin as admin_routes
+from app.routes import classification as classification_routes
 from app.routes import registry as registry_routes
 from app.security import CsrfError, SecurityHeadersMiddleware, VersionConflict
 from app.services.policy import PolicyViolation
@@ -77,6 +78,9 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 app.include_router(auth_router)
+# Wizard zakládání musí být registrovaný PŘED registrem: `/aplikace/nova` by
+# jinak spadlo do `/aplikace/{application_id}` a skončilo na 404.
+app.include_router(classification_routes.router)
 app.include_router(registry_routes.router)
 app.include_router(admin_routes.router)
 

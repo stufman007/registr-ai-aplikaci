@@ -1,8 +1,70 @@
 // Registr interních AI aplikací — vanilla JS, bez frameworku a bez závislostí.
 //
-// Fáze 8: záměrně prázdné. Tooltips u legislativních badge a governance tieru
-// řeší čisté CSS (`.tooltip` + `:hover` v app/static/style.css), JS pro ně
-// není potřeba.
+// Jediná dynamická část UI: přidávání a odebírání řádků AI komponent ve
+// formuláři nového záznamu (Fáze 11). Tooltips u legislativních badge,
+// governance tieru i voleb dotazníku řeší čisté CSS (`.tooltip` + `:hover`
+// v app/static/style.css).
 //
-// Fáze 11 sem doplní dynamické přidávání/odebírání řádků AI komponent ve
-// formuláři pro založení nového záznamu.
+// Formulář funguje i bez JS: server vždy vyrenderuje alespoň jeden řádek a
+// validaci počtu komponent (min. 1, max. 5) dělá backend znovu.
+
+(function () {
+  "use strict";
+
+  var DEFAULT_MAX_ROWS = 5;
+
+  function initComponentRows() {
+    var container = document.getElementById("komponenty");
+    var template = document.getElementById("komponenta-template");
+    var addButton = document.getElementById("komponenta-add");
+
+    if (!container || !template || !addButton) {
+      return;
+    }
+
+    var maxRows = parseInt(container.dataset.max, 10) || DEFAULT_MAX_ROWS;
+
+    function rows() {
+      return container.querySelectorAll(".komponenta-row");
+    }
+
+    function sync() {
+      var count = rows().length;
+      addButton.disabled = count >= maxRows;
+      rows().forEach(function (row) {
+        var removeButton = row.querySelector(".komponenta-remove");
+        if (removeButton) {
+          removeButton.disabled = count <= 1;
+        }
+      });
+    }
+
+    addButton.addEventListener("click", function () {
+      if (rows().length >= maxRows) {
+        return;
+      }
+      container.appendChild(template.content.cloneNode(true));
+      sync();
+    });
+
+    container.addEventListener("click", function (event) {
+      var button = event.target.closest(".komponenta-remove");
+      if (!button || rows().length <= 1) {
+        return;
+      }
+      var row = button.closest(".komponenta-row");
+      if (row) {
+        row.remove();
+        sync();
+      }
+    });
+
+    sync();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initComponentRows);
+  } else {
+    initComponentRows();
+  }
+})();

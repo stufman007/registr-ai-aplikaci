@@ -12,6 +12,7 @@ from pathlib import Path
 from fastapi.templating import Jinja2Templates
 
 from app.auth import get_current_user
+from app.flash import pop_flash
 from app.security import csrf_field
 
 APP_DIR = Path(__file__).resolve().parent
@@ -23,3 +24,5 @@ templates.env.globals["csrf_field"] = csrf_field
 # `base.html` potřebuje přihlášeného uživatele v hlavičce na každé stránce —
 # jako globál se nemusí protahovat kontextem každé jednotlivé šablony.
 templates.env.globals["current_user"] = get_current_user
+# Flash hlášky po redirectu — `base.html` je vypíše a zároveň smaže ze session.
+templates.env.globals["pop_flash"] = pop_flash

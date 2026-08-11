@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Podobné aplikace — Registr interních AI aplikací{% endblock %}
+
+{% block content %}
+<h1>Podobné aplikace už v registru</h1>
+<p class="note">Krok 2 ze 3 — kontrola duplicit pro „{{ nazev }}“.</p>
+
+{% if fallback_used %}
+<p class="fallback-note">
+  AI kontrola není dostupná; zobrazeny výsledky lokální kontroly.
+</p>
+{% endif %}
+
+{% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+<ul class="duplicates">
+  {% for match in matches %}
+  <li>
+    <a href="/aplikace/{{ match.record_id }}" target="_blank" rel="noopener">{{ match.nazev }}</a>
+    <p class="note">{{ match.duvod }}</p>
+  </li>
+  {% endfor %}
+</ul>
+
+<div class="duplicate-actions">
+  <form method="post" action="/aplikace/nova/duplicity/zrusit">
+    {{ csrf_field(request) }}
+    <button type="submit">Zrušit — už existuje</button>
+  </form>
+
+  <form method="post" action="/aplikace/nova/duplicity/pokracovat">
+    {{ csrf_field(request) }}
+    <label class="field">
+      Důvod, proč nejde o duplicitu (povinné)
+      <textarea name="duvod" rows="3" maxlength="4000" required>{{ reason }}</textarea>
+    </label>
+    <button type="submit">Pokračovat — je to jiná aplikace</button>
+  </form>
+</div>
+
+<p class="note"><a href="/aplikace/nova">Zpět na formulář</a> — vyplněné údaje zůstávají uložené.</p>
+{% endblock %}

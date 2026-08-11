@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}Nová aplikace — Registr interních AI aplikací{% endblock %}
+
+{% block content %}
+<h1>Nová aplikace v registru</h1>
+<p class="note">
+  Krok 1 ze 3 — kontakty, AI komponenty a klasifikační dotazník.
+  Nic se neukládá, dokud klasifikaci nepotvrdíte v posledním kroku.
+</p>
+
+{% if errors %}
+<p class="form-error">Formulář obsahuje chyby. Opravte prosím zvýrazněná pole.</p>
+{% endif %}
+
+<form method="post" action="/aplikace/nova" class="app-form">
+  {{ csrf_field(request) }}
+
+  <section>
+    <h2>Základní údaje</h2>
+
+    <label class="field">
+      Název aplikace
+      <input type="text" name="nazev" maxlength="200" value="{{ values.nazev }}" required>
+      {% if errors.nazev %}<span class="field-error">{{ errors.nazev }}</span>{% endif %}
+    </label>
+
+    <label class="field">
+      Stav
+      <select name="stav">
+        {% for s in all_stav %}
+        <option value="{{ s.name }}" {% if values.stav == s.name %}selected{% endif %}>{{ s.label() }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </section>
+
+  <section>
+    <h2>Kontakty</h2>
+    <p class="note">Vlastník odpovídá za obsah záznamu, technický správce za provoz.</p>
+
+    {% for role, popisek in [
+        ("vlastnik", "Vlastník"),
+        ("zastupce", "Zástupce"),
+        ("spravce", "Technický správce")
+    ] %}
+    <fieldset class="contact">
+      <legend>{{ popisek }}</legend>
+
+      <label class="field">
+        Jméno a příjmení
+        <input type="text" name="{{ role }}_jmeno" maxlength="200"
+               value="{{ values[role ~ '_jmeno'] }}" required>
+        {% if errors[role ~ '_jmeno'] %}
+        <span class="field-error">{{ errors[role ~ '_jmeno'] }}</span>
+        {% endif %}
+      </label>
+
+      <label class="field">
+        E-mail
+        <input type="email" name="{{ role }}_email" maxlength="200"
+               value="{{ values[role ~ '_email'] }}" required>
+        {% if errors[role ~ '_email'] %}
+        <span class="field-error">{{ errors[role ~ '_email'] }}</span>
+        {% endif %}
+      </label>
+    </fieldset>
+    {% endfor %}
+  </section>
+
+  <section>
+    <h2>AI komponenty</h2>
+    <p class="note">
+      Alespoň jedna, nejvýš {{ max_components }}. Z typu hostingu se odvozuje
+      signál „externí AI provider“ pro povinné minimum klasifikace.
+    </p>
+    {% if errors.komponenty %}<p class="field-error">{{ errors.komponenty }}</p>{% endif %}
+
+    <div id="komponenty" data-max="{{ max_components }}">
+      {% for komponenta in values.komponenty %}
+      <div class="komponenta-row">
+        <label class="field">
+          Poskytovatel
+          <select name="komponenta_provider">
+            <option value="">— vyberte —</option>
+            {% for p in providers %}
+            <option value="{{ p.name }}" {% if komponenta.provider == p.name %}selected{% endif %}>{{ p.label() }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label class="field">
+          Model
+          <input type="text" name="komponenta_model_name" maxlength="200"
+                 value="{{ komponenta.model_name }}" placeholder="např. claude-sonnet-5">
+        </label>
+
+        <label class="field">
+          Účel použití
+          <input type="text" name="komponenta_purpose" maxlength="4000"
+                 value="{{ komponenta.purpose }}" placeholder="např. sumarizace smluv">
+        </label>
+
+        <label class="field">
+          Hosting
+          <select name="komponenta_hosting_type">
+            <option value="">— vyberte —</option>
+            {% for h in hosting_types %}
+            <option value="{{ h.name }}" {% if komponenta.hosting_type == h.name %}selected{% endif %}>{{ h.label() }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <button type="button" class="komponenta-remove">Odebrat</button>
+
+        {% if errors['komponenta_' ~ loop.index0] %}
+        <span class="field-error">{{ errors['komponenta_' ~ loop.index0] }}</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    <button type="button" id="komponenta-add">Přidat komponentu</button>
+
+    {# Předloha pro klonování v app.js — prázdný řádek bez vyplněných hodnot. #}
+    <template id="komponenta-template">
+      <div class="komponenta-row">
+        <label class="field">
+          Poskytovatel
+          <select name="komponenta_provider">
+            <option value="">— vyberte —</option>
+            {% for p in providers %}
+            <option value="{{ p.name }}">{{ p.label() }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label class="field">
+          Model
+          <input type="text" name="komponenta_model_name" maxlength="200"
+                 placeholder="např. claude-sonnet-5">
+        </label>
+
+        <label class="field">
+          Účel použití
+          <input type="text" name="komponenta_purpose" maxlength="4000"
+                 placeholder="např. sumarizace smluv">
+        </label>
+
+        <label class="field">
+          Hosting
+          <select name="komponenta_hosting_type">
+            <option value="">— vyberte —</option>
+            {% for h in hosting_types %}
+            <option value="{{ h.name }}">{{ h.label() }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <button type="button" class="komponenta-remove">Odebrat</button>
+      </div>
+    </template>
+  </section>
+
+  <section>
+    <h2>Klasifikační dotazník</h2>
+    <p class="note">
+      Odpovědi jsou podkladem pro návrh AI i pro deterministická povinná minima.
+      U voleb s <span class="hint">ⓘ</span> najdete vysvětlení po najetí myší.
+    </p>
+
+    {% for question in questions %}
+      {% if question.choices %}
+      <fieldset class="question">
+        <legend>{{ question.number }}. {{ question.text }}</legend>
+        {% for choice in question.choices %}
+        <label class="choice">
+          <input type="radio" name="{{ question.field }}" value="{{ choice.value }}"
+                 {% if values.odpovedi[question.field] == choice.value %}checked{% endif %}>
+          {% if choice.tooltip %}
+          <span class="tooltip">{{ choice.label }} <span class="hint">ⓘ</span>
+            <span class="tooltip__text">{{ choice.tooltip }}</span>
+          </span>
+          {% else %}
+          <span>{{ choice.label }}</span>
+          {% endif %}
+        </label>
+        {% endfor %}
+        {% if errors[question.field] %}
+        <span class="field-error">{{ errors[question.field] }}</span>
+        {% endif %}
+      </fieldset>
+      {% else %}
+      <label class="field">
+        {{ question.number }}. {{ question.text }}
+        <textarea name="{{ question.field }}" rows="4" maxlength="4000" required>{{ values.odpovedi[question.field] }}</textarea>
+        {% if errors[question.field] %}
+        <span class="field-error">{{ errors[question.field] }}</span>
+        {% endif %}
+      </label>
+      {% endif %}
+    {% endfor %}
+  </section>
+
+  <div class="form-actions">
+    <button type="submit">Pokračovat</button>
+    <a href="/">Zrušit</a>
+  </div>
+</form>
+{% endblock %}
