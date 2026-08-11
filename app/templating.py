@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 
+from app.auth import get_current_user
 from app.security import csrf_field
 
 APP_DIR = Path(__file__).resolve().parent
@@ -19,3 +20,6 @@ STATIC_DIR = APP_DIR / "static"
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 templates.env.globals["csrf_field"] = csrf_field
+# `base.html` potřebuje přihlášeného uživatele v hlavičce na každé stránce —
+# jako globál se nemusí protahovat kontextem každé jednotlivé šablony.
+templates.env.globals["current_user"] = get_current_user

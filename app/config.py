@@ -20,8 +20,12 @@ class Settings(BaseSettings):
     # Demo přepínač: mock adapter vždy selže (ukázka fallbacku bez sítě).
     llm_force_fail: bool = False
 
+    # Veřejná URL (prohlížeč, authorize + logout) a backchannel URL (token, jwks,
+    # userinfo) jsou vedeny odděleně kvůli riziku R1 — issuer v tokenu vždy
+    # odpovídá veřejné variantě. Default cílí na lokální běh (uvicorn na hostu),
+    # kde jsou obě URL shodné; docker-compose backchannel přepíše na `keycloak:8080`.
     oidc_issuer_url: str = "http://localhost:8080/realms/registr"
-    oidc_internal_url: str = "http://keycloak:8080/realms/registr"
+    oidc_internal_url: str = "http://localhost:8080/realms/registr"
     oidc_client_id: str = "registr-app"
     oidc_client_secret: str = "dev-oidc-client-secret"
     oidc_roles_claim: str = "roles"

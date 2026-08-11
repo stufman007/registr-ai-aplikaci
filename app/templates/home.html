@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Registr interních AI aplikací</h1>
+<p>
+  Přihlášen jako <strong>{{ user.username }}</strong>
+  ({{ user.roles | sort | join(', ') if user.roles else 'bez rolí' }}).
+</p>
+<p class="note">Seznam evidovaných aplikací doplní další fáze.</p>
+{% endblock %}

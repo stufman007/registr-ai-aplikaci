@@ -12,9 +12,16 @@
       <a href="/">Registr interních AI aplikací</a>
     </div>
     <div class="site-header__user">
-      {% block user_info %}
-      {# Uživatelské jméno a role doplní Fáze 9 (OIDC přihlášení). #}
-      {% endblock %}
+      {% set header_user = current_user(request) %}
+      {% if header_user %}
+        <span class="user-name">{{ header_user.username }}</span>
+        {% for role in header_user.roles | sort %}
+          <span class="badge badge--role">{{ role }}</span>
+        {% endfor %}
+        <a href="/logout">Odhlásit</a>
+      {% else %}
+        <a href="/login">Přihlásit</a>
+      {% endif %}
     </div>
   </header>
 

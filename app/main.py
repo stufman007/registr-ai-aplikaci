@@ -14,14 +14,17 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.auth import LoginRequired, auth_router
 from app.config import settings
 from app.db import SessionLocal, init_db
 from app.llm.audit import purge_older_than
+from app.routes import admin as admin_routes
+from app.routes import home as home_routes
 from app.security import CsrfError, SecurityHeadersMiddleware, VersionConflict
 from app.services.policy import PolicyViolation
 from app.templating import STATIC_DIR, templates
@@ -73,6 +76,10 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+app.include_router(auth_router)
+app.include_router(home_routes.router)
+app.include_router(admin_routes.router)
+
 
 @app.get("/health")
 def health() -> JSONResponse:
@@ -103,6 +110,12 @@ async def handle_policy_violation(request: Request, exc: PolicyViolation) -> Res
         {"status_code": 400, "message": str(exc)},
         status_code=400,
     )
+
+
+@app.exception_handler(LoginRequired)
+async def handle_login_required(request: Request, exc: LoginRequired) -> Response:
+    """Nepřihlášený uživatel u GET stránky — pošle ho rovnou na přihlášení."""
+    return RedirectResponse("/login", status_code=303)
 
 
 @app.exception_handler(CsrfError)

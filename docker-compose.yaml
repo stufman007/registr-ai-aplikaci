@@ -1,0 +1,40 @@
+# Fáze 9 — zatím jen Keycloak. Službu `app` doplní Fáze 14.
+#
+# Riziko R1 (issuer mismatch): prohlížeč dosáhne na Keycloak přes
+# `http://localhost:8080`, kontejner aplikace ve Fázi 14 přes `http://keycloak:8080`.
+# `KC_HOSTNAME` fixuje frontend URL (a tím i `iss` v tokenu) na veřejnou variantu,
+# `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` dovolí backchannel volání přes interní
+# jméno služby. Aplikace obě URL drží odděleně: OIDC_ISSUER_URL / OIDC_INTERNAL_URL.
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    container_name: registr-keycloak
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+      - keycloak-data:/opt/keycloak/data/h2
+    healthcheck:
+      # Keycloak 26 vystavuje /health na management portu 9000 a image neobsahuje
+      # curl ani wget — HTTP dotaz se proto skládá ručně přes bash /dev/tcp.
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3 &&
+          cat <&3 | grep -q '"status": "UP"'
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+volumes:
+  keycloak-data:
