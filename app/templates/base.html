@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Registr interních AI aplikací{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header__title">
+      <a href="/">Registr interních AI aplikací</a>
+    </div>
+    <div class="site-header__user">
+      {% block user_info %}
+      {# Uživatelské jméno a role doplní Fáze 9 (OIDC přihlášení). #}
+      {% endblock %}
+    </div>
+  </header>
+
+  <main class="site-main">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <p class="disclaimer">
+      Klasifikace je interní governance tier, nikoli právní klasifikace.
+      Legislativní signály (GDPR / AI-ACT / DORA) jsou podnět k dalšímu
+      review, nikoli právní závěr.
+    </p>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}Chyba {{ status_code }} — Registr interních AI aplikací{% endblock %}
+
+{% block content %}
+  <section class="error-page">
+    <h1>Chyba {{ status_code }}</h1>
+    <p class="error-page__message">{{ message }}</p>
+    <p><a href="/">Zpět na úvodní stránku</a></p>
+  </section>
+{% endblock %}

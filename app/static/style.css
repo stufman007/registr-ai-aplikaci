@@ -1,0 +1,188 @@
+/* Registr interních AI aplikací — minimální čisté CSS, bez frameworku. */
+
+:root {
+  --color-bg: #f7f7f9;
+  --color-surface: #ffffff;
+  --color-text: #1f2430;
+  --color-muted: #616675;
+  --color-border: #dcdfe6;
+  --color-accent: #2952a3;
+
+  --color-tier-mala: #2f8f4e;
+  --color-tier-stredni: #b8860b;
+  --color-tier-velka: #b3261e;
+
+  --color-badge-gdpr: #2952a3;
+  --color-badge-ai-act: #7a3fae;
+  --color-badge-dora: #a3521c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--color-text);
+  background: var(--color-bg);
+  line-height: 1.5;
+}
+
+a {
+  color: var(--color-accent);
+}
+
+.site-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1.5rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.site-header__title a {
+  font-weight: 600;
+  font-size: 1.1rem;
+  text-decoration: none;
+  color: var(--color-text);
+}
+
+.site-main {
+  padding: 1.5rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.site-footer {
+  padding: 1rem 1.5rem;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
+.disclaimer {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* --- Tabulky ------------------------------------------------------ */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-surface);
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+th {
+  font-weight: 600;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+}
+
+/* --- Governance tier badge ------------------------------------------ */
+
+.tier-mala,
+.tier-stredni,
+.tier-velka {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.tier-mala {
+  background: var(--color-tier-mala);
+}
+
+.tier-stredni {
+  background: var(--color-tier-stredni);
+}
+
+.tier-velka {
+  background: var(--color-tier-velka);
+}
+
+/* --- Legislativní badge (GDPR / AI-ACT / DORA) ---------------------- */
+
+.badge-gdpr,
+.badge-ai-act,
+.badge-dora {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  margin-right: 0.25rem;
+}
+
+.badge-gdpr {
+  background: var(--color-badge-gdpr);
+}
+
+.badge-ai-act {
+  background: var(--color-badge-ai-act);
+}
+
+.badge-dora {
+  background: var(--color-badge-dora);
+}
+
+/* --- Tooltip přes CSS :hover, bez JS -------------------------------- */
+
+.tooltip {
+  position: relative;
+  cursor: help;
+  border-bottom: 1px dotted var(--color-muted);
+}
+
+.tooltip .tooltip__text {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  z-index: 10;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-text);
+  color: #fff;
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: normal;
+  white-space: normal;
+  width: max-content;
+  max-width: 260px;
+  transition: opacity 0.1s ease-in-out;
+  pointer-events: none;
+}
+
+.tooltip:hover .tooltip__text,
+.tooltip:focus .tooltip__text {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* --- Stránka chyby --------------------------------------------------- */
+
+.error-page {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 1.5rem;
+}
+
+.error-page__message {
+  color: var(--color-muted);
+}
