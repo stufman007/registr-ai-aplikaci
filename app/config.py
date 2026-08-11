@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-5"
     llm_timeout_seconds: int = 10
     llm_audit_retention_days: int = 90
+    # Demo přepínač: mock adapter vždy selže (ukázka fallbacku bez sítě).
+    llm_force_fail: bool = False
 
     oidc_issuer_url: str = "http://localhost:8080/realms/registr"
     oidc_internal_url: str = "http://keycloak:8080/realms/registr"
