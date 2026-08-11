@@ -277,7 +277,15 @@ def _render_form(
     values: dict[str, Any],
     errors: dict[str, str],
     status_code: int = status.HTTP_200_OK,
+    *,
+    form_action: str = "/aplikace/nova",
+    cancel_url: str = "/",
+    is_edit: bool = False,
+    version: int | None = None,
 ) -> HTMLResponse:
+    """Vykreslí `app_form.html`. Sdílí ho i editace (Fáze 12, `app.routes.edit`) —
+    `form_action`/`cancel_url`/`is_edit`/`version` odlišují cíl POSTu a hidden
+    pole optimistic lockingu, zbytek šablony i validace je identický."""
     return templates.TemplateResponse(
         request,
         "app_form.html",
@@ -290,6 +298,10 @@ def _render_form(
             "hosting_types": list(HostingType),
             "all_stav": list(Stav),
             "max_components": MAX_COMPONENTS,
+            "form_action": form_action,
+            "cancel_url": cancel_url,
+            "is_edit": is_edit,
+            "version": version,
         },
         status_code=status_code,
     )
@@ -484,7 +496,14 @@ def _render_classification(
     poznamka: str = "",
     error: str = "",
     status_code: int = status.HTTP_200_OK,
+    *,
+    action_url: str = "/aplikace/nova/ulozit",
+    back_url: str = "/aplikace/nova",
 ) -> HTMLResponse:
+    """Vykreslí `classify_step.html`. Sdílí ho i re-klasifikace při editaci
+    (Fáze 12, `app.routes.edit`) — `action_url`/`back_url` odlišují jen cíl
+    formuláře, `state` má v obou tocích stejný tvar (`values`/`klasifikace`/
+    `duplicate_reason`)."""
     klasifikace = state.get("klasifikace") or {}
     return templates.TemplateResponse(
         request,
@@ -504,6 +523,8 @@ def _render_classification(
             "poznamka": poznamka,
             "error": error,
             "duplicate_reason": state.get("duplicate_reason") or "",
+            "form_action": action_url,
+            "back_url": back_url,
         },
         status_code=status_code,
     )

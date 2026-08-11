@@ -1,20 +1,28 @@
 {% extends "base.html" %}
 
-{% block title %}Nová aplikace — Registr interních AI aplikací{% endblock %}
+{% block title %}{% if is_edit %}Úprava aplikace{% else %}Nová aplikace{% endif %} — Registr interních AI aplikací{% endblock %}
 
 {% block content %}
-<h1>Nová aplikace v registru</h1>
+<h1>{% if is_edit %}Úprava aplikace{% else %}Nová aplikace v registru{% endif %}</h1>
 <p class="note">
+  {% if is_edit %}
+  Změna rizikových odpovědí (otázky 3–9) před uložením vyžádá novou klasifikaci.
+  Změna AI komponent rozsvítí štítek „vyžaduje review“.
+  {% else %}
   Krok 1 ze 3 — kontakty, AI komponenty a klasifikační dotazník.
   Nic se neukládá, dokud klasifikaci nepotvrdíte v posledním kroku.
+  {% endif %}
 </p>
 
 {% if errors %}
 <p class="form-error">Formulář obsahuje chyby. Opravte prosím zvýrazněná pole.</p>
 {% endif %}
 
-<form method="post" action="/aplikace/nova" class="app-form">
+<form method="post" action="{{ form_action | default('/aplikace/nova') }}" class="app-form">
   {{ csrf_field(request) }}
+  {% if is_edit %}
+  <input type="hidden" name="version" value="{{ version }}">
+  {% endif %}
 
   <section>
     <h2>Základní údaje</h2>
@@ -203,8 +211,8 @@
   </section>
 
   <div class="form-actions">
-    <button type="submit">Pokračovat</button>
-    <a href="/">Zrušit</a>
+    <button type="submit">{% if is_edit %}Uložit změny{% else %}Pokračovat{% endif %}</button>
+    <a href="{{ cancel_url | default('/') }}">Zrušit</a>
   </div>
 </form>
 {% endblock %}

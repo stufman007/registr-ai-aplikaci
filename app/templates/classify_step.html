@@ -11,7 +11,7 @@
 
 {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
-<form method="post" action="/aplikace/nova/ulozit">
+<form method="post" action="{{ form_action | default('/aplikace/nova/ulozit') }}">
   {{ csrf_field(request) }}
 
   <div class="classify-grid">
@@ -88,7 +88,7 @@
 
   <div class="form-actions">
     <button type="submit">Uložit záznam</button>
-    <a href="/aplikace/nova">Zpět na formulář</a>
+    <a href="{{ back_url | default('/aplikace/nova') }}">Zpět na formulář</a>
   </div>
 </form>
 {% endblock %}
