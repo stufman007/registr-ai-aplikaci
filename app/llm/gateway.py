@@ -39,6 +39,7 @@ from app.llm.base import (
     LlmError,
     error_code_for,
 )
+from app.llm.anthropic import AnthropicAdapter
 from app.llm.mock import MockAdapter
 from app.schemas import DotaznikOdpovedi, KomponentaInfo, LlmPurpose, Tier
 from app.services.similarity import FALLBACK_THRESHOLD, MAX_CANDIDATES, Candidate
@@ -138,10 +139,11 @@ def get_adapter() -> LlmAdapter:
         return MockAdapter()
 
     if provider == "anthropic":
-        raise NotImplementedError(
-            "Adapter pro Anthropic zatím neexistuje (app/llm/anthropic.py vzniká ve "
-            "Fázi 7). Nastavte LLM_PROVIDER=mock."
-        )
+        if not settings.anthropic_api_key:
+            raise RuntimeError(
+                "LLM_PROVIDER=anthropic vyžaduje ANTHROPIC_API_KEY v .env"
+            )
+        return AnthropicAdapter()
 
     raise ValueError(
         f"Neznámý LLM_PROVIDER {settings.llm_provider!r}; povolené hodnoty: mock, anthropic"
