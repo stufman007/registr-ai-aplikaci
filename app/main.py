@@ -86,6 +86,7 @@ app.include_router(classification_routes.router)
 app.include_router(edit_routes.router)
 app.include_router(registry_routes.router)
 app.include_router(admin_routes.router)
+app.include_router(admin_routes.aplikace_router)
 
 
 @app.get("/health")

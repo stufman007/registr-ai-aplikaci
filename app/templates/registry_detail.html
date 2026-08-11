@@ -21,10 +21,26 @@
   <a class="button" href="/aplikace/{{ application.id }}/upravit">Upravit</a>
   {% endif %}
   {% if can_admin %}
+    <a class="button" href="/aplikace/{{ application.id }}/preklasifikovat">Překlasifikovat</a>
     {% if application.deleted_at %}
-    <a class="button" href="/aplikace/{{ application.id }}/obnovit">Obnovit</a>
+    <form method="post" action="/aplikace/{{ application.id }}/obnovit" class="inline-action-form">
+      {{ csrf_field(request) }}
+      <input type="hidden" name="version" value="{{ application.version }}">
+      <button type="submit" class="button">Obnovit</button>
+    </form>
     {% else %}
-    <a class="button" href="/aplikace/{{ application.id }}/vyradit">Vyřadit</a>
+    <details class="retire-action">
+      <summary class="button">Vyřadit</summary>
+      <form method="post" action="/aplikace/{{ application.id }}/vyradit" class="inline-action-form">
+        {{ csrf_field(request) }}
+        <input type="hidden" name="version" value="{{ application.version }}">
+        <label class="field">
+          Důvod vyřazení (povinné)
+          <textarea name="reason" rows="3" maxlength="4000" required></textarea>
+        </label>
+        <button type="submit">Vyřadit záznam</button>
+      </form>
+    </details>
     {% endif %}
   {% endif %}
 </div>

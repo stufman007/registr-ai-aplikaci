@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Překlasifikace — {{ application.nazev }} — Registr interních AI aplikací{% endblock %}
+
+{% block content %}
+<h1>Překlasifikace aplikace „{{ application.nazev }}“</h1>
+<p class="note">
+  Admin může klasifikaci upravit, nikdy ale pod deterministické policy
+  minimum — pokus o snížení skončí chybou.
+</p>
+
+{% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+<form method="post" action="/aplikace/{{ application.id }}/preklasifikovat">
+  {{ csrf_field(request) }}
+  <input type="hidden" name="version" value="{{ version }}">
+
+  <div class="classify-grid">
+
+    <section class="classify-card">
+      <h2>Návrh AI</h2>
+      <p>
+        {% if llm_tier %}
+          {% set tier = llm_tier %}
+          {% include "_tier.html" %}
+        {% else %}
+        <span class="note">Nedostupný (použit fallback)</span>
+        {% endif %}
+      </p>
+    </section>
+
+    <section class="classify-card">
+      <h2>Povinné minimum</h2>
+      <p>
+        {% set tier = minimum.tier %}
+        {% include "_tier.html" %}
+      </p>
+      {% if minimum.triggered_rules %}
+      <ul class="rules">
+        {% for rule in minimum.triggered_rules %}
+        <li>{{ rule.popis }} <code>{{ rule.reason_code }}</code></li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="note">Žádné eskalační pravidlo se neaktivovalo.</p>
+      {% endif %}
+    </section>
+
+    <section class="classify-card">
+      <h2>Aktuální tier</h2>
+      <p>
+        {% set tier = current_tier %}
+        {% include "_tier.html" %}
+      </p>
+      <label class="field">
+        Nový governance tier
+        <select name="tier">
+          {% for t in tier_options %}
+          <option value="{{ t.name }}" {% if selected == t %}selected{% endif %}>{{ t.label() }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        Poznámka k překlasifikaci (povinná)
+        <textarea name="poznamka" rows="3" maxlength="4000" required>{{ poznamka }}</textarea>
+      </label>
+    </section>
+
+    <section class="classify-card">
+      <h2>Signály</h2>
+      <p>{% include "_flags.html" %}</p>
+      <p class="note">
+        Signály jsou podnět ke governance review, nikoli právní závěr.
+      </p>
+    </section>
+
+  </div>
+
+  <div class="form-actions">
+    <button type="submit">Uložit klasifikaci</button>
+    <a href="/aplikace/{{ application.id }}">Zpět na detail</a>
+  </div>
+</form>
+{% endblock %}
