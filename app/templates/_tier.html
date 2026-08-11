@@ -1,0 +1,12 @@
+{# Partial: barevný štítek governance tieru (spec kap. 5.5).
+   Očekává v kontextu:
+     tier  — Tier enum (MALA/STREDNI/VELKA)
+     duvod — volitelné zdůvodnění; je-li vyplněné, štítek dostane hover tooltip #}
+{% if duvod %}
+<span class="tooltip tier-{{ tier.name | lower }}">
+  {{ tier.label() }}
+  <span class="tooltip__text">{{ duvod | truncate(160) }}</span>
+</span>
+{% else %}
+<span class="tier-{{ tier.name | lower }}">{{ tier.label() }}</span>
+{% endif %}

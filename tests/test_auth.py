@@ -197,10 +197,15 @@ def test_check_owner_or_admin_matrix() -> None:
 # --- domovská stránka -------------------------------------------------------
 
 
-def test_home_shows_login_page_when_anonymous() -> None:
-    response = client.get("/")
-    assert response.status_code == 200
-    assert "Přihlásit se" in response.text
+def test_home_redirects_anonymous_to_login() -> None:
+    """Od Fáze 10 je `/` seznam registru za `require_user` — anonym jde na `/login`.
+
+    Nesleduje se redirect dál (`/login` sám přesměruje na Keycloak) — to
+    ověřuje `test_login_redirects_to_public_keycloak_authorize_endpoint`.
+    """
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
 
 
 def test_home_shows_username_and_roles_when_logged_in() -> None:

@@ -1,0 +1,13 @@
+{# Partial: legislativní signály GDPR/AI-ACT/DORA (spec kap. 5.4).
+   Očekává v kontextu:
+     flags — seznam dictů {zkratka, titulek, detail, reason_code, source}
+             (uložených v `applications.klasifikace_priznaky`)
+   Badge se zkratkou, hover tooltip s titulkem a detailem — čistě CSS, bez JS. #}
+{% for flag in flags %}
+<span class="tooltip badge-{{ flag.zkratka | lower }}">
+  {{ flag.zkratka }}
+  <span class="tooltip__text"><strong>{{ flag.titulek }}</strong><br>{{ flag.detail }}</span>
+</span>
+{% else %}
+<span class="note">—</span>
+{% endfor %}

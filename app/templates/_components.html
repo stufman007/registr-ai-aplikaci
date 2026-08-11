@@ -1,0 +1,41 @@
+{# Partial: AI komponenty aplikace (spec kap. 4.2).
+   Očekává v kontextu:
+     components — seznam AiComponent
+     mode       — "zkraceny" (registr, provider/model prvního + „+N") nebo
+                  "plny" (detail, celá tabulka); default "plny" #}
+{% set mode = mode | default("plny") %}
+{% if mode == "zkraceny" %}
+  {% if components %}
+    {{ components[0].provider.label() }} / {{ components[0].model_name }}
+    {% if components | length > 1 %}
+      <span class="badge">+{{ components | length - 1 }}</span>
+    {% endif %}
+  {% else %}
+    <span class="note">Bez komponent</span>
+  {% endif %}
+{% else %}
+  {% if components %}
+  <table class="components-table">
+    <thead>
+      <tr>
+        <th>Provider</th>
+        <th>Model</th>
+        <th>Účel</th>
+        <th>Hosting</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for komponenta in components %}
+      <tr>
+        <td>{{ komponenta.provider.label() }}</td>
+        <td>{{ komponenta.model_name }}</td>
+        <td>{{ komponenta.purpose }}</td>
+        <td>{{ komponenta.hosting_type.label() }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="note">Aplikace nemá evidované AI komponenty.</p>
+  {% endif %}
+{% endif %}

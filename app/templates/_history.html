@@ -1,0 +1,33 @@
+{# Partial: immutable historie změn (spec kap. 4.3).
+   Očekává v kontextu:
+     history — seznam RecordHistory, řazený od nejnovějšího #}
+{% if history %}
+<table class="history-table">
+  <thead>
+    <tr>
+      <th>Kdy</th>
+      <th>Kdo</th>
+      <th>Akce</th>
+      <th>Pole</th>
+      <th>Stará hodnota</th>
+      <th>Nová hodnota</th>
+      <th>Důvod</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for entry in history %}
+    <tr>
+      <td>{{ entry.kdy.strftime("%d.%m.%Y %H:%M") }}</td>
+      <td>{{ entry.actor }}</td>
+      <td>{{ entry.action.label() }}</td>
+      <td>{{ entry.pole or "—" }}</td>
+      <td>{{ entry.stara_hodnota or "—" }}</td>
+      <td>{{ entry.nova_hodnota or "—" }}</td>
+      <td>{{ entry.reason or "—" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="note">Zatím žádná historie změn.</p>
+{% endif %}

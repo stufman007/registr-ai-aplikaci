@@ -1,0 +1,247 @@
+"""Testy registru — seznam a detail karty (Fáze 10, spec kap. 12 UI obrazovky 2 a 4).
+
+`get_db` je pro tento soubor přepsaný na in-memory SQLite (`StaticPool` drží
+jedno sdílené spojení, aby data vložená přímo přes `Session` viděl i request
+přes `TestClient`). Session se podvrhuje stejným vzorem jako v `test_auth.py`,
+ale přes vlastní testovací router s jinou cestou — soubory se nesmí spoléhat
+na pořadí importu napříč testovacími moduly.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterator
+from datetime import datetime, timezone
+
+import pytest
+from fastapi import APIRouter, Request
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from app.auth import SESSION_USER_KEY
+from app.db import Base, get_db
+from app.main import app
+from app.models import Application
+from app.schemas import Stav, Tier
+
+# --- in-memory DB sdílená přes všechny requesty v tomto souboru ------------
+
+_engine = create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+_TestSessionLocal = sessionmaker(bind=_engine, autoflush=False, autocommit=False)
+
+
+def _override_get_db() -> Iterator[Session]:
+    db = _TestSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@pytest.fixture(autouse=True)
+def _registry_db() -> Iterator[None]:
+    """Čerstvé schéma + `get_db` override jen po dobu testů v tomto souboru."""
+    Base.metadata.create_all(bind=_engine)
+    app.dependency_overrides[get_db] = _override_get_db
+    try:
+        yield
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        Base.metadata.drop_all(bind=_engine)
+
+
+# --- vlastní testovací router pro podvržení session (vzor z test_auth.py) --
+
+_test_router = APIRouter()
+
+
+@_test_router.post("/_test/registry/session-login")
+async def _session_login(request: Request) -> dict[str, bool]:
+    request.session[SESSION_USER_KEY] = await request.json()
+    return {"ok": True}
+
+
+@_test_router.post("/_test/registry/session-logout")
+async def _session_logout(request: Request) -> dict[str, bool]:
+    request.session.clear()
+    return {"ok": True}
+
+
+app.include_router(_test_router)
+
+client = TestClient(app)
+
+
+def _login(**session_data: object) -> None:
+    assert client.post("/_test/registry/session-login", json=session_data).status_code == 200
+
+
+def _logout() -> None:
+    assert client.post("/_test/registry/session-logout").status_code == 200
+
+
+@pytest.fixture(autouse=True)
+def _clean_session() -> None:
+    client.cookies.clear()
+
+
+# --- seed helper -------------------------------------------------------------
+
+
+def _make_application(**overrides: object) -> Application:
+    defaults: dict[str, object] = dict(
+        nazev="Sumarizátor smluv",
+        popis="Shrnuje nahrané smlouvy do bodů pro právní tým.",
+        vlastnik_jmeno="Jana Nová",
+        vlastnik_email="jana.nova@example.com",
+        zastupce_jmeno="Petr Svoboda",
+        zastupce_email="petr.svoboda@example.com",
+        spravce_jmeno="Tomáš Malý",
+        spravce_email="tomas.maly@example.com",
+        klasifikace_llm=Tier.MALA,
+        klasifikace_minimum=Tier.MALA,
+        klasifikace=Tier.MALA,
+        klasifikace_zduvodneni="Nízké riziko, interní pomocný nástroj.",
+        klasifikace_potvrdil="jana.nova",
+        dotaznik_odpovedi={},
+        stav=Stav.PILOT,
+        created_by="jana.nova",
+        updated_by="jana.nova",
+    )
+    defaults.update(overrides)
+    return Application(**defaults)
+
+
+def _seed(**overrides: object) -> Application:
+    """Uloží aplikaci přímo přes session (bez create route — ta je Fáze 11)."""
+    session = _TestSessionLocal()
+    try:
+        entity = _make_application(**overrides)
+        session.add(entity)
+        session.commit()
+        session.refresh(entity)
+        return entity
+    finally:
+        session.close()
+
+
+# --- GET / -------------------------------------------------------------------
+
+
+def test_get_root_redirects_anonymous_to_login() -> None:
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
+def test_list_shows_active_application_for_logged_in_user() -> None:
+    active = _seed()
+    _login(username="jana.nova", email="jana.nova@example.com", roles=["user"])
+
+    response = client.get("/")
+    assert response.status_code == 200
+    assert active.nazev in response.text
+
+
+def test_retired_application_hidden_from_regular_user_list() -> None:
+    retired = _seed(
+        nazev="Starý nástroj",
+        deleted_at=datetime.now(timezone.utc),
+        deleted_by="admin",
+        delete_reason="Nahrazeno novým nástrojem.",
+    )
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/")
+    assert response.status_code == 200
+    assert retired.nazev not in response.text
+
+
+def test_admin_sees_retired_applications_with_query_param() -> None:
+    retired = _seed(
+        nazev="Starý nástroj",
+        deleted_at=datetime.now(timezone.utc),
+        deleted_by="admin",
+        delete_reason="Nahrazeno novým nástrojem.",
+    )
+    _login(username="admin", email="admin@example.com", roles=["user", "admin"])
+
+    response = client.get("/", params={"zobrazit": "vyrazene"})
+    assert response.status_code == 200
+    assert retired.nazev in response.text
+
+
+def test_regular_user_retired_query_param_is_ignored() -> None:
+    retired = _seed(
+        nazev="Starý nástroj",
+        deleted_at=datetime.now(timezone.utc),
+        deleted_by="admin",
+        delete_reason="Nahrazeno novým nástrojem.",
+    )
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"zobrazit": "vyrazene"})
+    assert response.status_code == 200
+    assert retired.nazev not in response.text
+
+
+def test_stav_filter_narrows_list() -> None:
+    pilot = _seed(nazev="Pilotní nástroj", stav=Stav.PILOT)
+    provoz = _seed(nazev="Provozní nástroj", stav=Stav.PROVOZ)
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"stav": "PROVOZ"})
+    assert response.status_code == 200
+    assert provoz.nazev in response.text
+    assert pilot.nazev not in response.text
+
+
+def test_unknown_stav_filter_value_is_ignored() -> None:
+    pilot = _seed(nazev="Pilotní nástroj", stav=Stav.PILOT)
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"stav": "NESMYSL"})
+    assert response.status_code == 200
+    assert pilot.nazev in response.text
+
+
+# --- GET /aplikace/{id} -------------------------------------------------------
+
+
+def test_detail_404_for_unknown_id() -> None:
+    _login(username="user", email="user@example.com", roles=["user"])
+    response = client.get("/aplikace/does-not-exist")
+    assert response.status_code == 404
+
+
+def test_detail_shows_history_and_classification_for_owner() -> None:
+    active = _seed()
+    _login(username="jana.nova", email="jana.nova@example.com", roles=["user"])
+
+    response = client.get(f"/aplikace/{active.id}")
+    assert response.status_code == 200
+    assert active.klasifikace_zduvodneni in response.text
+    assert "Upravit" in response.text
+
+
+def test_detail_retired_hidden_for_regular_user_but_visible_for_admin() -> None:
+    retired = _seed(
+        nazev="Starý nástroj",
+        deleted_at=datetime.now(timezone.utc),
+        deleted_by="admin",
+        delete_reason="Nahrazeno novým nástrojem.",
+    )
+    _login(username="user", email="user@example.com", roles=["user"])
+    assert client.get(f"/aplikace/{retired.id}").status_code == 404
+
+    _logout()
+    _login(username="admin", email="admin@example.com", roles=["user", "admin"])
+    response = client.get(f"/aplikace/{retired.id}")
+    assert response.status_code == 200
+    assert "VYŘAZENO" in response.text
+    assert retired.delete_reason in response.text

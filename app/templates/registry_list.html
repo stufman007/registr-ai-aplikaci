@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Registr — Registr interních AI aplikací{% endblock %}
+
+{% block content %}
+<h1>Registr aplikací</h1>
+
+<form method="get" action="/" class="filters">
+  <label>
+    Stav
+    <select name="stav">
+      <option value="">Vše</option>
+      {% for s in all_stav %}
+      <option value="{{ s.name }}" {% if filter_stav == s %}selected{% endif %}>{{ s.label() }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    Tier
+    <select name="tier">
+      <option value="">Vše</option>
+      {% for t in all_tier %}
+      <option value="{{ t.name }}" {% if filter_tier == t %}selected{% endif %}>{{ t.label() }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  {% if show_deleted %}
+  <input type="hidden" name="zobrazit" value="vyrazene">
+  {% endif %}
+  <button type="submit">Filtrovat</button>
+  {% if user.is_admin %}
+    {% if show_deleted %}
+    <a href="/">Zobrazit aktivní</a>
+    {% else %}
+    <a href="/?zobrazit=vyrazene">Zobrazit vyřazené</a>
+    {% endif %}
+  {% endif %}
+</form>
+
+{% if show_deleted %}
+<p class="note">Zobrazeny vyřazené záznamy (jen pro admina).</p>
+{% endif %}
+
+{% if applications %}
+<table>
+  <thead>
+    <tr>
+      <th>Název</th>
+      <th>Vlastník</th>
+      <th>Tier</th>
+      <th>Signály</th>
+      <th>Stav</th>
+      <th>Komponenty</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for polozka in applications %}
+    <tr>
+      <td>
+        <a href="/aplikace/{{ polozka.id }}">{{ polozka.nazev }}</a>
+        {% if polozka.review_required %}
+        <span class="badge badge--review">vyžaduje review</span>
+        {% endif %}
+      </td>
+      <td>{{ polozka.vlastnik_jmeno }}</td>
+      <td>
+        {% set tier = polozka.klasifikace %}
+        {% set duvod = polozka.klasifikace_zduvodneni %}
+        {% include "_tier.html" %}
+      </td>
+      <td>
+        {% set flags = polozka.klasifikace_priznaky %}
+        {% include "_flags.html" %}
+      </td>
+      <td>{{ polozka.stav.label() }}</td>
+      <td>
+        {% set components = polozka.components %}
+        {% set mode = "zkraceny" %}
+        {% include "_components.html" %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="note">
+  {% if show_deleted %}Žádné vyřazené záznamy.{% else %}Registr zatím neobsahuje žádné aktivní aplikace.{% endif %}
+</p>
+{% endif %}
+{% endblock %}

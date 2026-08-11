@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}{{ application.nazev }} — Registr interních AI aplikací{% endblock %}
+
+{% block content %}
+{% if application.deleted_at %}
+<div class="retired-banner">
+  VYŘAZENO: {{ application.delete_reason }}
+</div>
+{% endif %}
+
+<h1>
+  {{ application.nazev }}
+  {% if application.review_required %}
+  <span class="badge badge--review">vyžaduje review</span>
+  {% endif %}
+</h1>
+
+<div class="actions">
+  {% if can_edit %}
+  <a class="button" href="/aplikace/{{ application.id }}/upravit">Upravit</a>
+  {% endif %}
+  {% if can_admin %}
+    {% if application.deleted_at %}
+    <a class="button" href="/aplikace/{{ application.id }}/obnovit">Obnovit</a>
+    {% else %}
+    <a class="button" href="/aplikace/{{ application.id }}/vyradit">Vyřadit</a>
+    {% endif %}
+  {% endif %}
+</div>
+
+<section>
+  <h2>Karta aplikace</h2>
+  <table class="kv-table">
+    <tr><th>Popis</th><td>{{ application.popis }}</td></tr>
+    <tr><th>Vlastník</th><td>{{ application.vlastnik_jmeno }} ({{ application.vlastnik_email }})</td></tr>
+    <tr><th>Zástupce</th><td>{{ application.zastupce_jmeno }} ({{ application.zastupce_email }})</td></tr>
+    <tr><th>Technický správce</th><td>{{ application.spravce_jmeno }} ({{ application.spravce_email }})</td></tr>
+    <tr><th>Stav</th><td>{{ application.stav.label() }}</td></tr>
+    <tr><th>Založil</th><td>{{ application.created_by }} ({{ application.created_at.strftime("%d.%m.%Y %H:%M") }})</td></tr>
+    <tr><th>Naposledy upravil</th><td>{{ application.updated_by }} ({{ application.updated_at.strftime("%d.%m.%Y %H:%M") }})</td></tr>
+    <tr><th>Verze (optimistic locking)</th><td>{{ application.version }}</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>AI komponenty</h2>
+  {% set components = application.components %}
+  {% set mode = "plny" %}
+  {% include "_components.html" %}
+</section>
+
+<section>
+  <h2>Klasifikace</h2>
+  <table class="kv-table">
+    <tr>
+      <th>Návrh AI</th>
+      <td>
+        {% if application.klasifikace_llm %}
+          {% set tier = application.klasifikace_llm %}
+          {% set duvod = none %}
+          {% include "_tier.html" %}
+        {% else %}
+          <span class="note">Nedostupný (použit fallback)</span>
+        {% endif %}
+      </td>
+    </tr>
+    <tr>
+      <th>Policy minimum</th>
+      <td>
+        {% set tier = application.klasifikace_minimum %}
+        {% set duvod = none %}
+        {% include "_tier.html" %}
+      </td>
+    </tr>
+    <tr>
+      <th>Výsledný tier</th>
+      <td>
+        {% set tier = application.klasifikace %}
+        {% set duvod = application.klasifikace_zduvodneni %}
+        {% include "_tier.html" %}
+      </td>
+    </tr>
+    <tr><th>Zdůvodnění</th><td>{{ application.klasifikace_zduvodneni }}</td></tr>
+    {% if application.klasifikace_poznamka %}
+    <tr><th>Poznámka k ruční změně</th><td>{{ application.klasifikace_poznamka }}</td></tr>
+    {% endif %}
+    <tr><th>Potvrdil</th><td>{{ application.klasifikace_potvrdil }}</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>Signály</h2>
+  {% set flags = application.klasifikace_priznaky %}
+  {% include "_flags.html" %}
+  <p class="note">Signály jsou podnět ke governance review, nikoli právní klasifikace.</p>
+</section>
+
+<section>
+  <h2>Historie změn</h2>
+  {% include "_history.html" %}
+</section>
+{% endblock %}

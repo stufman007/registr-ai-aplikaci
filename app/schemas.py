@@ -199,6 +199,16 @@ class AuditAction(StrEnum):
     RESTORE = "RESTORE"
     DUPLICATE_OVERRIDE = "DUPLICATE_OVERRIDE"
 
+    def label(self) -> str:
+        return {
+            AuditAction.CREATE: "Vytvořeno",
+            AuditAction.UPDATE: "Upraveno",
+            AuditAction.CLASSIFY: "Klasifikováno",
+            AuditAction.RETIRE: "Vyřazeno",
+            AuditAction.RESTORE: "Obnoveno",
+            AuditAction.DUPLICATE_OVERRIDE: "Potvrzeno přes duplicitu",
+        }[self]
+
 
 class LlmPurpose(StrEnum):
     CLASSIFY = "classify"

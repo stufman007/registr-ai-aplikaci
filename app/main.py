@@ -24,7 +24,7 @@ from app.config import settings
 from app.db import SessionLocal, init_db
 from app.llm.audit import purge_older_than
 from app.routes import admin as admin_routes
-from app.routes import home as home_routes
+from app.routes import registry as registry_routes
 from app.security import CsrfError, SecurityHeadersMiddleware, VersionConflict
 from app.services.policy import PolicyViolation
 from app.templating import STATIC_DIR, templates
@@ -77,7 +77,7 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 app.include_router(auth_router)
-app.include_router(home_routes.router)
+app.include_router(registry_routes.router)
 app.include_router(admin_routes.router)
 
 
