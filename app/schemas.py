@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import IntEnum, StrEnum
 
 
@@ -202,3 +203,29 @@ class AuditAction(StrEnum):
 class LlmPurpose(StrEnum):
     CLASSIFY = "classify"
     DUPLICATES = "duplicates"
+
+
+# --- Sdílené vstupní DTO pro policy/regulatory/gateway ---
+
+
+@dataclass(frozen=True)
+class DotaznikOdpovedi:
+    """Snapshot odpovědí klasifikačního dotazníku (spec kap. 5.1, otázky 1–9)."""
+
+    ucel: str
+    pocet_uzivatelu: PocetUzivatelu
+    kritictnost: Kritictnost
+    osobni_udaje: OsobniUdaje
+    rozhodovani: RozhodovaniOLidech
+    viditelnost: ViditelnostVystupu
+    citlivost: CitlivostDat
+    autonomie: Autonomie
+    dopad: DopadChyby
+
+
+@dataclass(frozen=True)
+class KomponentaInfo:
+    """Minimální info o AI komponentě potřebné pro deterministická pravidla."""
+
+    provider: Provider
+    hosting_type: HostingType
