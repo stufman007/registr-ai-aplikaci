@@ -107,8 +107,8 @@ def compute_flags(
             detail = (
                 "Aplikace rozhoduje automatizovaně o konkrétní osobě bez lidské "
                 "kontroly. Silný signál vysokého rizika dle Přílohy III EU AI Act — "
-                "vyžaduje governance a právní review před nasazením. Není to právní "
-                "závěr, ale podnět k prověření."
+                "vyžaduje governance review a právní posouzení před nasazením. "
+                "Není to právní závěr, ale podnět k prověření."
             )
 
         flags.append(
