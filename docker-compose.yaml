@@ -1,10 +1,16 @@
-# Fáze 9 — zatím jen Keycloak. Službu `app` doplní Fáze 14.
+# Fáze 14 — kompletní compose (Keycloak + app). Musí naběhnout jedním
+# `docker compose up` na cizím stroji BEZ `.env` (spec kap. 12, riziko R4) —
+# proto `${VAR:-default}` u všeho kromě `ANTHROPIC_API_KEY` (prázdný default,
+# vyžaduje se jen při `LLM_PROVIDER=anthropic`).
 #
 # Riziko R1 (issuer mismatch): prohlížeč dosáhne na Keycloak přes
-# `http://localhost:8080`, kontejner aplikace ve Fázi 14 přes `http://keycloak:8080`.
+# `http://localhost:8080`, kontejner aplikace přes `http://keycloak:8080`.
 # `KC_HOSTNAME` fixuje frontend URL (a tím i `iss` v tokenu) na veřejnou variantu,
 # `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` dovolí backchannel volání přes interní
 # jméno služby. Aplikace obě URL drží odděleně: OIDC_ISSUER_URL / OIDC_INTERNAL_URL.
+#
+# SQLite soubor jde na named volume `app_data` (ne bind mount — Windows +
+# SQLite zamykání souboru, riziko R4).
 
 services:
   keycloak:
@@ -36,5 +42,52 @@ services:
       retries: 30
       start_period: 20s
 
+  app:
+    build: .
+    container_name: registr-app
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      APP_SECRET_KEY: ${APP_SECRET_KEY:-dev-insecure-secret-key-change-me}
+      # Named volume, ne bind mount (Windows + SQLite zamykání, riziko R4).
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////data/registr.db}
+
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-10}
+      LLM_AUDIT_RETENTION_DAYS: ${LLM_AUDIT_RETENTION_DAYS:-90}
+      LLM_FORCE_FAIL: ${LLM_FORCE_FAIL:-false}
+
+      # Veřejná (prohlížeč) vs. backchannel (interní compose síť) URL —
+      # oddělené kvůli riziku R1, viz komentář nahoře.
+      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-http://localhost:8080/realms/registr}
+      OIDC_INTERNAL_URL: ${OIDC_INTERNAL_URL:-http://keycloak:8080/realms/registr}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-registr-app}
+      # Dev hodnota shodná s `secret` clienta v keycloak/realm-export.json.
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-dev-oidc-client-secret}
+      OIDC_ROLES_CLAIM: ${OIDC_ROLES_CLAIM:-roles}
+
+      SESSION_MAX_AGE: ${SESSION_MAX_AGE:-28800}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    volumes:
+      - app_data:/data
+    healthcheck:
+      # Image nemá curl/wget — health check přes stdlib urllib, bez závislosti
+      # na nástrojích v image (stejný princip jako u keycloak healthcheck).
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
 volumes:
   keycloak-data:
+  app_data:

@@ -1,10 +1,10 @@
 """FastAPI kostra: `/health`, session, CSRF a error handlery (Fáze 8).
 
 Startup (lifespan, moderní API místo `@app.on_event`):
-    logging setup → "Aplikace startuje" → `init_db()` → `purge_older_than`
-    (vlastní `SessionLocal`, zavře se po použití) → log počtu smazaných řádků.
-
-Seed syntetických dat je Fáze 14 — zde se NEDĚLÁ (jen `create_all` + purge).
+    logging setup → "Aplikace startuje" → `init_db()` → `seed_if_empty`
+    (jen prázdná DB) → `purge_older_than` (vlastní `SessionLocal` pro každý
+    krok, zavře se po použití) → log počtů (spec kap. 12: create_all → seed
+    → purge audit).
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ from app.routes import classification as classification_routes
 from app.routes import edit as edit_routes
 from app.routes import registry as registry_routes
 from app.security import CsrfError, SecurityHeadersMiddleware, VersionConflict
+from app.seed_data import seed_if_empty
 from app.services.policy import PolicyViolation
 from app.templating import STATIC_DIR, templates
 
@@ -48,6 +49,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("Aplikace startuje")
 
     init_db()
+
+    seed_session = SessionLocal()
+    try:
+        seeded = seed_if_empty(seed_session)
+    finally:
+        seed_session.close()
+    logger.info("Seed syntetických dat: vloženo %d aplikací", seeded)
 
     session = SessionLocal()
     try:
