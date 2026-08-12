@@ -50,6 +50,7 @@ from scripts.eval.models import (
     ModelSpec,
     build_adapter,
     load_pricing,
+    price_for_tokens,
     price_per_1000_calls,
     pricing_is_verified,
     resolve_aliases,
@@ -126,8 +127,13 @@ class ModelSummary:
     dup_fp: int = 0
     dup_fn: int = 0
     dup_latence: list[int] = field(default_factory=list)
+    dup_tokens_in: list[int] = field(default_factory=list)
+    dup_tokens_out: list[int] = field(default_factory=list)
     judge_skore: list[float] = field(default_factory=list)
     judge_neohodnoceno: int = 0
+    #: Skutečná cena tohoto běhu (USD) — součet za všechna reálná volání
+    #: klasifikace a duplicit tohoto modelu, ne odhad z průměru.
+    skutecna_cena_usd: float = 0.0
 
 
 # --- Pomocné výpočty --------------------------------------------------------
@@ -287,6 +293,8 @@ def _summarize(
     classify_records: Sequence[ClassifyRecord],
     duplicate_records: Sequence[DuplicateRecord],
     verdikty: dict[tuple[str, str, int], judge_module.JudgeVerdict],
+    *,
+    dry_run: bool,
 ) -> dict[str, ModelSummary]:
     souhrny = {s.alias: ModelSummary(alias=s.alias, model_id=s.model_id) for s in specs}
 
@@ -301,6 +309,9 @@ def _summarize(
         s.tokens_out.append(rec.tokens_out)
         s.konceptu_ocekavano += len(rec.mentions_hit) + len(rec.mentions_missed)
         s.konceptu_zmineno += len(rec.mentions_hit)
+        s.skutecna_cena_usd += price_for_tokens(
+            rec.model_alias, rec.tokens_in, rec.tokens_out, dry_run=dry_run
+        ) or 0.0
 
         verdikt = verdikty.get((rec.model_alias, rec.case_id, rec.run_index))
         if verdikt is None or verdikt.prumer is None:
@@ -313,6 +324,11 @@ def _summarize(
         s = souhrny[rec.model_alias]
         s.dup_volani += 1
         s.dup_latence.append(rec.latence_ms)
+        s.dup_tokens_in.append(rec.tokens_in)
+        s.dup_tokens_out.append(rec.tokens_out)
+        s.skutecna_cena_usd += price_for_tokens(
+            rec.model_alias, rec.tokens_in, rec.tokens_out, dry_run=dry_run
+        ) or 0.0
         if rec.fallback_used:
             s.dup_fallback += 1
             continue  # Fallback = lokální heuristika, ne odpověď modelu.
@@ -342,6 +358,7 @@ def _render_report(
     skip_judge: bool,
     threshold: float,
     kdy: datetime,
+    judge_usage: dict[str, judge_module.JudgeUsage],
 ) -> str:
     radky: list[str] = []
     radky.append("# Eval report — Registr interních AI aplikací")
@@ -431,6 +448,9 @@ def _render_report(
         )
 
     radky.append("")
+    radky.extend(_render_skutecna_cena(souhrny, judge_usage, dry_run=dry_run))
+
+    radky.append("")
     radky.extend(_render_sweetspot(souhrny, dry_run=dry_run, threshold=threshold))
 
     radky.append("")
@@ -461,6 +481,69 @@ def _render_report(
         "spadla do fallbacku, se do P/R nepočítají (odpověděla lokální heuristika, ne model)."
     )
     return "\n".join(radky) + "\n"
+
+
+def _render_skutecna_cena(
+    souhrny: dict[str, ModelSummary],
+    judge_usage: dict[str, judge_module.JudgeUsage],
+    *,
+    dry_run: bool,
+) -> list[str]:
+    """Skutečná cena TOHOTO běhu — součet reálné spotřeby tokenů × sazba,
+    ne odhad z průměru. Samostatně klasifikace+duplicity per model a
+    samostatně volání porotce per porotce (porotce hodnotí odpovědi všech
+    modelů, takže nepatří pod jeden konkrétní hodnocený model)."""
+    radky = ["## Skutečná cena tohoto běhu", ""]
+    radky.append(
+        "Součet (tokeny_in × sazba_in + tokeny_out × sazba_out) přes všechna "
+        "skutečná volání v tomto běhu — ne odhad z průměrné spotřeby."
+    )
+    radky.append("")
+    radky.append("### Klasifikace + duplicity (per model)")
+    radky.append("")
+    radky.append("| Model | Volání celkem | Tokeny in (součet) | Tokeny out (součet) | Cena (USD) |")
+    radky.append("|---|---|---|---|---|")
+
+    celkem = 0.0
+    for s in souhrny.values():
+        volani = s.klasifikaci + s.dup_volani
+        radky.append(
+            "| {alias} | {volani} | {tin} | {tout} | {cena} |".format(
+                alias=s.alias,
+                volani=volani,
+                tin=sum(s.tokens_in) + sum(s.dup_tokens_in),
+                tout=sum(s.tokens_out) + sum(s.dup_tokens_out),
+                cena=f"{s.skutecna_cena_usd:.4f}",
+            )
+        )
+        celkem += s.skutecna_cena_usd
+
+    radky.append("")
+    radky.append("### Porotci (cross-judge, per porotce)")
+    radky.append("")
+    if not judge_usage:
+        radky.append("Judge přeskočen (`--skip-judge`) nebo bez dat.")
+    else:
+        radky.append("| Porotce | Volání | Tokeny in (součet) | Tokeny out (součet) | Cena (USD) |")
+        radky.append("|---|---|---|---|---|")
+        for alias, usage in judge_usage.items():
+            cena_judge = price_for_tokens(
+                alias, usage.tokens_in, usage.tokens_out, dry_run=dry_run
+            ) or 0.0
+            radky.append(
+                "| {alias} | {volani} | {tin} | {tout} | {cena} |".format(
+                    alias=alias,
+                    volani=usage.calls,
+                    tin=usage.tokens_in,
+                    tout=usage.tokens_out,
+                    cena=f"{cena_judge:.4f}",
+                )
+            )
+            celkem += cena_judge
+
+    radky.append("")
+    radky.append(f"**Celková skutečná cena tohoto běhu: {celkem:.4f} USD.**")
+    return radky
 
 
 def _render_sweetspot(
@@ -569,20 +652,31 @@ def run_eval(
             )
 
     verdikty: dict[tuple[str, str, int], judge_module.JudgeVerdict] = {}
+    judge_usage: dict[str, judge_module.JudgeUsage] = {}
     if not skip_judge:
         if verbose:
             print(f"[eval] judge ({', '.join(JUDGE_ALIASES)}) ...")
-        verdikty = judge_module.run_judges(
+        verdikty, judge_usage = judge_module.run_judges(
             _judge_tasks(classify_records, cases), JUDGE_ALIASES, dry_run=dry_run
         )
 
-    souhrny = _summarize(specs, classify_records, duplicate_records, verdikty)
+    souhrny = _summarize(
+        specs, classify_records, duplicate_records, verdikty, dry_run=dry_run
+    )
     kdy = datetime.now()
     stamp = kdy.strftime("%Y%m%d-%H%M%S")
 
     output_dir.mkdir(parents=True, exist_ok=True)
     raw_path = output_dir / f"{stamp}_raw.json"
     report_path = output_dir / f"{stamp}_report.md"
+
+    judge_cena_per_alias = {
+        alias: price_for_tokens(alias, u.tokens_in, u.tokens_out, dry_run=dry_run) or 0.0
+        for alias, u in judge_usage.items()
+    }
+    skutecna_cena_celkem = sum(s.skutecna_cena_usd for s in souhrny.values()) + sum(
+        judge_cena_per_alias.values()
+    )
 
     raw_path.write_text(
         json.dumps(
@@ -597,6 +691,14 @@ def run_eval(
                     "pricing_verified": pricing_is_verified(),
                     "trvani_s": round(time.monotonic() - start, 2),
                     "modely": [asdict(s) for s in specs],
+                    "skutecna_cena_usd_per_model": {
+                        alias: round(s.skutecna_cena_usd, 6)
+                        for alias, s in souhrny.items()
+                    },
+                    "skutecna_cena_usd_per_judge": {
+                        alias: round(cena, 6) for alias, cena in judge_cena_per_alias.items()
+                    },
+                    "skutecna_cena_usd_celkem": round(skutecna_cena_celkem, 6),
                 },
                 "klasifikace": [asdict(r) for r in classify_records],
                 "duplicity": [asdict(r) for r in duplicate_records],
@@ -628,6 +730,7 @@ def run_eval(
             skip_judge=skip_judge,
             threshold=threshold,
             kdy=kdy,
+            judge_usage=judge_usage,
         ),
         encoding="utf-8",
     )

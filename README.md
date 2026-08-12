@@ -180,7 +180,39 @@ ANTHROPIC_MODEL=claude-sonnet-5
 S `LLM_PROVIDER=anthropic` a chybějícím klíčem selže **první LLM volání**
 hned s čitelnou chybou (`RuntimeError: LLM_PROVIDER=anthropic vyžaduje
 ANTHROPIC_API_KEY v .env`) — žádné tiché přepnutí zpátky na mock
-(`app/llm/gateway.py:get_adapter`).
+(`app/llm/gateway.py:get_adapter`). Stejně fungují adaptery `openai` a `gemini`.
+
+## Výběr modelu podle vlastního evalu cena/výkon
+
+Model pro produkční provoz nebyl zvolen dojmem, ale **změřením**: eval harness
+(`scripts/eval/`, metodika v [`scripts/eval/README.md`](scripts/eval/README.md))
+prohnal 6 modelů tří providerů identickým produkčním tokem (gateway včetně
+pseudonymizace a fallbacku) nad zlatým datasetem 24 klasifikačních případů
+(validovaným proti policy pravidlům) a 8 duplicitních párů, 2 běhy na případ.
+Kvalitu českého zdůvodnění hodnotila cross-judge porota (soudci vždy z cizí
+modelové rodiny). Kompletní report: [`docs/eval/2026-08-12_eval-report.md`](docs/eval/2026-08-12_eval-report.md).
+
+| Model | Přesnost exact / acceptable | JSON validita | Zdůvodnění (judge 1–5) | Cena / 1000 klasifikací |
+|---|---|---|---|---|
+| **gpt-5.4-mini** | **89,6 % / 97,9 %** | 100 % | 4,31 | **$1,38** |
+| gemini-3.5-flash | 83,3 % / 91,7 % | 91,7 % | 4,12 | $14,94 † |
+| claude-haiku-4-5 | 79,2 % / 87,5 % | 95,8 % | 4,32 | $1,65 |
+| gpt-5.4 | 79,2 % / 91,7 % | 100 % | 4,24 | $4,65 |
+| claude-sonnet-5 | 75,0 % / 83,3 % | 95,8 % | **4,66** | $4,55 |
+| gemini-3.1-pro | nevyhodnoceno — trvalý rate-limit kvóty účtu | | | |
+
+† Gemini 3.5 Flash účtuje reasoning („thinking") tokeny jako výstup — průměrně
+1 529 výstupních tokenů na volání proti ~175 u ostatních. Nominálně levný model
+je tak v této úloze **10× dražší než gpt-5.4-mini**. Přesně kvůli takovým
+překvapením se cena měří na reálné úloze, ne z ceníku.
+
+**Sweetspot: `gpt-5.4-mini`** — nejpřesnější a zároveň nejlevnější model testu
+(dominuje ve všech tvrdých metrikách). Slabinou je nižší precision u duplicit
+(66,7 % — víc falešných poplachů), což je v tomto UX levná chyba: uživatel
+falešného kandidáta jednou kliknutím odmítne. Pokud by prioritou byla kvalita
+zdůvodnění do governance dokumentace, prémiovou volbou je `claude-sonnet-5`
+(judge 4,66, nejlepší text) za ~3× vyšší cenu. Skutečná cena celého evalu
+(755 API volání vč. poroty): **$2,85**.
 
 ## Klasifikace této aplikace samotné a proč
 

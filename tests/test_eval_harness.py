@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from scripts.eval import judge as judge_module
+from scripts.eval import run_eval as run_eval_module
 from scripts.eval.models import JUDGE_ALIASES, MODELS, price_per_1000_calls
 from scripts.eval.run_eval import main, run_eval
 
@@ -78,10 +79,31 @@ def test_report_obsahuje_tabulku_a_cenu(vysledky) -> None:
         assert f"| {alias} |" in report
 
 
-def test_report_varuje_ze_ceny_nejsou_overene(vysledky) -> None:
+def test_report_upozornuje_na_dry_run(vysledky) -> None:
+    report = vysledky.report_path.read_text(encoding="utf-8")
+    assert "DRY-RUN" in report
+
+
+def test_report_varuje_ze_ceny_nejsou_overene_kdyz_neoverene(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`pricing.json` je teď ověřený (viz scripts/eval/pricing.json), ale report
+    musí umět zobrazit varování i pro budoucí neověřený stav — ověřeno přes monkeypatch,
+    aby test nezávisel na aktuálním (ověřeném) obsahu ceníku."""
+    monkeypatch.setattr(run_eval_module, "pricing_is_verified", lambda: False)
+
+    vysledky = run_eval(
+        model_aliases=MODELY,
+        dry_run=True,
+        runs=1,
+        skip_judge=True,
+        output_dir=tmp_path / "results",
+        limit_cases=2,
+        limit_duplicates=1,
+        verbose=False,
+    )
     report = vysledky.report_path.read_text(encoding="utf-8")
     assert "Ceny nejsou ověřené" in report
-    assert "DRY-RUN" in report
 
 
 def test_harness_pouziva_in_memory_databazi() -> None:

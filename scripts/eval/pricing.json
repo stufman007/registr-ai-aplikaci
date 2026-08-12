@@ -1,38 +1,56 @@
 {
-  "_comment": "Ceník pro přepočet spotřebovaných tokenů na cenu za 1000 klasifikací. Ceny jsou v USD za 1 milion tokenů a pocházejí z veřejných ceníků providerů podle nejlepších znalostí autora — NEJSOU ověřené proti aktuálnímu ceníku. Před prezentací výsledků nastavit 'verified' na true a hodnoty zkontrolovat (viz scripts/eval/README.md).",
+  "_comment": "Ceník pro přepočet spotřebovaných tokenů na cenu za 1000 klasifikací. Ceny jsou v USD za 1 milion tokenů, standardní tier bez cache/batch slev. Ověřeno ručně proti oficiálním ceníkům providerů — viz 'zdroj' a 'overeno_k' u každého modelu.",
   "mena": "USD",
   "jednotka": "USD za 1 000 000 tokenů",
-  "verified": false,
+  "verified": true,
   "modely": {
     "claude-sonnet-5": {
-      "input_per_mtok_usd": 3.0,
-      "output_per_mtok_usd": 15.0,
-      "zdroj_pozn": "Veřejný ceník Anthropic, úroveň Sonnet — ověřit při ostrém běhu."
+      "input_per_mtok_usd": 2.0,
+      "output_per_mtok_usd": 10.0,
+      "verified_model": true,
+      "zdroj": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "overeno_k": "2026-08-12",
+      "zdroj_pozn": "Oficiální ceník Anthropic. $2/$10 za MTok je od 2026-09-01 standardní (dřívější 'úvodní') cena pro Claude Sonnet 5."
     },
     "claude-haiku-4-5": {
       "input_per_mtok_usd": 1.0,
       "output_per_mtok_usd": 5.0,
-      "zdroj_pozn": "Veřejný ceník Anthropic, úroveň Haiku 4.5 — ověřit při ostrém běhu."
+      "verified_model": true,
+      "zdroj": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "overeno_k": "2026-08-12",
+      "zdroj_pozn": "Oficiální ceník Anthropic, Claude Haiku 4.5."
     },
     "gpt-flagship": {
-      "input_per_mtok_usd": 1.25,
-      "output_per_mtok_usd": 10.0,
-      "zdroj_pozn": "Veřejný ceník OpenAI, vlajkový model — ověřit při ostrém běhu."
+      "input_per_mtok_usd": 2.5,
+      "output_per_mtok_usd": 15.0,
+      "verified_model": true,
+      "zdroj": "https://platform.openai.com/docs/pricing (přesměrováno na developers.openai.com/api/docs/pricing)",
+      "overeno_k": "2026-08-12",
+      "zdroj_pozn": "Oficiální ceník OpenAI pro gpt-5.4 (standard tier, kontext do 272K)."
     },
     "gpt-mini": {
-      "input_per_mtok_usd": 0.25,
-      "output_per_mtok_usd": 2.0,
-      "zdroj_pozn": "Veřejný ceník OpenAI, mini varianta — ověřit při ostrém běhu."
+      "input_per_mtok_usd": 0.75,
+      "output_per_mtok_usd": 4.5,
+      "verified_model": true,
+      "zdroj": "https://platform.openai.com/docs/pricing (přesměrováno na developers.openai.com/api/docs/pricing)",
+      "overeno_k": "2026-08-12",
+      "zdroj_pozn": "Oficiální ceník OpenAI pro gpt-5.4-mini."
     },
     "gemini-3-pro": {
       "input_per_mtok_usd": 2.0,
       "output_per_mtok_usd": 12.0,
-      "zdroj_pozn": "Veřejný ceník Google, Gemini 3 Pro (kratší kontext) — ověřit při ostrém běhu."
+      "verified_model": true,
+      "zdroj": "https://ai.google.dev/gemini-api/docs/pricing",
+      "overeno_k": "2026-08-12",
+      "zdroj_pozn": "Oficiální ceník Google pro gemini-3.1-pro-preview, prompty do 200K tokenů (nad 200K je $4/$18 — eval datasetu se netýká)."
     },
     "gemini-3-flash": {
-      "input_per_mtok_usd": 0.3,
-      "output_per_mtok_usd": 2.5,
-      "zdroj_pozn": "Veřejný ceník Google, Gemini 3 Flash — ověřit při ostrém běhu."
+      "input_per_mtok_usd": 1.5,
+      "output_per_mtok_usd": 9.0,
+      "verified_model": true,
+      "zdroj": "https://ai.google.dev/gemini-api/docs/pricing",
+      "overeno_k": "2026-08-12",
+      "zdroj_pozn": "Oficiální ceník Google pro gemini-3.5-flash."
     },
     "mock": {
       "input_per_mtok_usd": 0.0,

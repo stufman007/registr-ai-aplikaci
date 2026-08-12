@@ -16,11 +16,11 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-sonnet-5"
     openai_api_key: str | None = None
-    # Defaultní ID modelů jsou nejlepší známý odhad — ověřit při ostrém běhu
-    # přes `models.list` daného SDK (viz scripts/eval/README.md).
-    openai_model: str = "gpt-5.1"
+    # ID ověřena při ostrém běhu evalu 2026-08 přes `models.list` daného SDK
+    # (viz scripts/eval/README.md). Při dalším upgradu providera ověřit znovu.
+    openai_model: str = "gpt-5.4"
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-3-pro-preview"
+    gemini_model: str = "gemini-3.1-pro-preview"
     llm_timeout_seconds: int = 10
     llm_audit_retention_days: int = 90
     # Demo přepínač: mock adapter vždy selže (ukázka fallbacku bez sítě).

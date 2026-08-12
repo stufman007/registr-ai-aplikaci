@@ -61,29 +61,29 @@ MODELS: dict[str, ModelSpec] = {
         alias="gpt-flagship",
         family="openai",
         provider="openai",
-        model_id="gpt-5.1",  # ověřit při běhu přes client.models.list()
-        poznamka="Vlajkový model OpenAI. ID ověřit při ostrém běhu.",
+        model_id="gpt-5.4",  # ověřeno 2026-08 přes models.list() — nejnovější vlajkový
+        poznamka="Vlajkový model OpenAI (gpt-5.4).",
     ),
     "gpt-mini": ModelSpec(
         alias="gpt-mini",
         family="openai",
         provider="openai",
-        model_id="gpt-5.1-mini",  # ověřit při běhu přes client.models.list()
-        poznamka="Levná varianta OpenAI. ID ověřit při ostrém běhu.",
+        model_id="gpt-5.4-mini",  # ověřeno 2026-08 přes models.list()
+        poznamka="Levná varianta OpenAI (gpt-5.4-mini).",
     ),
     "gemini-3-pro": ModelSpec(
         alias="gemini-3-pro",
         family="gemini",
         provider="gemini",
-        model_id="gemini-3-pro-preview",  # ověřit při běhu přes client.models.list()
-        poznamka="Vlajkový Gemini. ID ověřit při ostrém běhu.",
+        model_id="gemini-3.1-pro-preview",  # ověřeno 2026-08 přes models.list()
+        poznamka="Vlajkový Gemini (gemini-3.1-pro-preview).",
     ),
     "gemini-3-flash": ModelSpec(
         alias="gemini-3-flash",
         family="gemini",
         provider="gemini",
-        model_id="gemini-3-flash-preview",  # ověřit při běhu přes client.models.list()
-        poznamka="Levná varianta Gemini. ID ověřit při ostrém běhu.",
+        model_id="gemini-3.5-flash",  # ověřeno 2026-08 přes models.list()
+        poznamka="Levná varianta Gemini (gemini-3.5-flash).",
     ),
 }
 
@@ -132,10 +132,10 @@ def load_pricing() -> dict[str, Any]:
     return json.loads(PRICING_PATH.read_text(encoding="utf-8"))
 
 
-def price_per_1000_calls(
-    alias: str, avg_tokens_in: float, avg_tokens_out: float, *, dry_run: bool
+def price_for_tokens(
+    alias: str, tokens_in: float, tokens_out: float, *, dry_run: bool
 ) -> float | None:
-    """Cena 1000 volání v USD podle průměrné spotřeby tokenů.
+    """Cena v USD za zadaný počet tokenů (jedno volání, nebo součet přes více volání).
 
     `None` = pro alias není v ceníku sazba (report to napíše místo čísla).
     """
@@ -144,11 +144,21 @@ def price_per_1000_calls(
     if sazby is None:
         return None
 
-    za_volani = (
-        avg_tokens_in / 1_000_000 * sazby["input_per_mtok_usd"]
-        + avg_tokens_out / 1_000_000 * sazby["output_per_mtok_usd"]
+    return (
+        tokens_in / 1_000_000 * sazby["input_per_mtok_usd"]
+        + tokens_out / 1_000_000 * sazby["output_per_mtok_usd"]
     )
-    return za_volani * 1000
+
+
+def price_per_1000_calls(
+    alias: str, avg_tokens_in: float, avg_tokens_out: float, *, dry_run: bool
+) -> float | None:
+    """Cena 1000 volání v USD podle průměrné spotřeby tokenů.
+
+    `None` = pro alias není v ceníku sazba (report to napíše místo čísla).
+    """
+    za_volani = price_for_tokens(alias, avg_tokens_in, avg_tokens_out, dry_run=dry_run)
+    return None if za_volani is None else za_volani * 1000
 
 
 def pricing_is_verified() -> bool:

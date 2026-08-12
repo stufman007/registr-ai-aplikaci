@@ -64,6 +64,18 @@ class JudgeVerdict:
     selhani: int
 
 
+@dataclass
+class JudgeUsage:
+    """Souhrn skutečné spotřeby tokenů jednoho porotce přes celý běh evalu.
+
+    Slouží k dopočtu skutečné ceny volání porotce (samostatná řádka v reportu,
+    odlišná od ceny klasifikace — porotce hodnotí odpovědi *všech* modelů)."""
+
+    calls: int = 0
+    tokens_in: int = 0
+    tokens_out: int = 0
+
+
 @lru_cache(maxsize=1)
 def load_judge_prompt() -> tuple[str, str]:
     """Vrátí `(PROMPT_VERSION, tělo bez hlavičky a interních komentářů)`."""
@@ -119,8 +131,9 @@ def run_judges(
     judge_aliases: tuple[str, ...],
     *,
     dry_run: bool,
-) -> dict[tuple[str, str, int], JudgeVerdict]:
-    """Projede všechny úlohy porotou a vrátí verdikty podle klíče úlohy.
+) -> tuple[dict[tuple[str, str, int], JudgeVerdict], dict[str, JudgeUsage]]:
+    """Projede všechny úlohy porotou a vrátí (verdikty podle klíče úlohy, spotřeba
+    tokenů per porotce).
 
     Adaptery porotců se vytvářejí jednou na běh (jedno spojení na porotce).
     Selhání jednoho porotce nesmí shodit celý eval — zaznamená se a jede se dál.
@@ -128,6 +141,7 @@ def run_judges(
     adaptery = {
         alias: build_adapter(MODELS[alias], dry_run=dry_run) for alias in judge_aliases
     }
+    spotreba: dict[str, JudgeUsage] = {alias: JudgeUsage() for alias in judge_aliases}
 
     verdikty: dict[tuple[str, str, int], JudgeVerdict] = {}
     for task in tasks:
@@ -135,7 +149,11 @@ def run_judges(
         selhani = 0
 
         for judge in judges_for(task.model_alias, judge_aliases):
-            skore = _judge_once(adaptery[judge.alias], task)
+            skore, tokens_in, tokens_out = _judge_once(adaptery[judge.alias], task)
+            usage = spotreba[judge.alias]
+            usage.calls += 1
+            usage.tokens_in += tokens_in
+            usage.tokens_out += tokens_out
             if skore is None:
                 selhani += 1
             else:
@@ -151,18 +169,18 @@ def run_judges(
             selhani=selhani,
         )
 
-    return verdikty
+    return verdikty, spotreba
 
 
-def _judge_once(adapter: Any, task: JudgeTask) -> dict[str, int] | None:
-    """Jedno volání porotce. `None` = nedostupné nebo nevalidní skóre."""
+def _judge_once(adapter: Any, task: JudgeTask) -> tuple[dict[str, int] | None, int, int]:
+    """Jedno volání porotce. `(None, 0, 0)` = nedostupné nebo nevalidní skóre."""
     try:
         result = adapter.complete(build_prompt(task), LlmPurpose.CLASSIFY)
     except Exception:
         # Selhání porotce (timeout, rate limit, cokoli) nesmí shodit celý eval.
         # Obsah chyby se nikam neloguje, případ se jen započítá jako neohodnocený.
-        return None
-    return parse_scores(result.text)
+        return None, 0, 0
+    return parse_scores(result.text), result.tokens_in, result.tokens_out
 
 
 def parse_scores(text: str) -> dict[str, int] | None:
