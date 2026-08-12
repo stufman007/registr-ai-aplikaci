@@ -40,7 +40,9 @@ from app.llm.base import (
     error_code_for,
 )
 from app.llm.anthropic import AnthropicAdapter
+from app.llm.gemini_adapter import GeminiAdapter
 from app.llm.mock import MockAdapter
+from app.llm.openai_adapter import OpenAiAdapter
 from app.schemas import DotaznikOdpovedi, KomponentaInfo, LlmPurpose, Tier
 from app.services.similarity import FALLBACK_THRESHOLD, MAX_CANDIDATES, Candidate
 
@@ -145,8 +147,19 @@ def get_adapter() -> LlmAdapter:
             )
         return AnthropicAdapter()
 
+    if provider == "openai":
+        if not settings.openai_api_key:
+            raise RuntimeError("LLM_PROVIDER=openai vyžaduje OPENAI_API_KEY v .env")
+        return OpenAiAdapter()
+
+    if provider == "gemini":
+        if not settings.gemini_api_key:
+            raise RuntimeError("LLM_PROVIDER=gemini vyžaduje GEMINI_API_KEY v .env")
+        return GeminiAdapter()
+
     raise ValueError(
-        f"Neznámý LLM_PROVIDER {settings.llm_provider!r}; povolené hodnoty: mock, anthropic"
+        f"Neznámý LLM_PROVIDER {settings.llm_provider!r}; "
+        "povolené hodnoty: mock, anthropic, openai, gemini"
     )
 
 

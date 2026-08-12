@@ -40,8 +40,11 @@ class AnthropicAdapter:
 
     provider: str = PROVIDER
 
-    def __init__(self) -> None:
-        self.model = settings.anthropic_model
+    def __init__(self, model: str | None = None) -> None:
+        """`model` přebije `ANTHROPIC_MODEL` ze settings (potřebuje eval harness,
+        který porovnává víc modelů téhož providera v jednom běhu). Bez argumentu
+        se chování nemění."""
+        self.model = model or settings.anthropic_model
         self._client = anthropic.Anthropic(
             api_key=settings.anthropic_api_key,
             timeout=settings.llm_timeout_seconds,

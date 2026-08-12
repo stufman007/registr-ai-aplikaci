@@ -1,0 +1,43 @@
+{
+  "_comment": "Ceník pro přepočet spotřebovaných tokenů na cenu za 1000 klasifikací. Ceny jsou v USD za 1 milion tokenů a pocházejí z veřejných ceníků providerů podle nejlepších znalostí autora — NEJSOU ověřené proti aktuálnímu ceníku. Před prezentací výsledků nastavit 'verified' na true a hodnoty zkontrolovat (viz scripts/eval/README.md).",
+  "mena": "USD",
+  "jednotka": "USD za 1 000 000 tokenů",
+  "verified": false,
+  "modely": {
+    "claude-sonnet-5": {
+      "input_per_mtok_usd": 3.0,
+      "output_per_mtok_usd": 15.0,
+      "zdroj_pozn": "Veřejný ceník Anthropic, úroveň Sonnet — ověřit při ostrém běhu."
+    },
+    "claude-haiku-4-5": {
+      "input_per_mtok_usd": 1.0,
+      "output_per_mtok_usd": 5.0,
+      "zdroj_pozn": "Veřejný ceník Anthropic, úroveň Haiku 4.5 — ověřit při ostrém běhu."
+    },
+    "gpt-flagship": {
+      "input_per_mtok_usd": 1.25,
+      "output_per_mtok_usd": 10.0,
+      "zdroj_pozn": "Veřejný ceník OpenAI, vlajkový model — ověřit při ostrém běhu."
+    },
+    "gpt-mini": {
+      "input_per_mtok_usd": 0.25,
+      "output_per_mtok_usd": 2.0,
+      "zdroj_pozn": "Veřejný ceník OpenAI, mini varianta — ověřit při ostrém běhu."
+    },
+    "gemini-3-pro": {
+      "input_per_mtok_usd": 2.0,
+      "output_per_mtok_usd": 12.0,
+      "zdroj_pozn": "Veřejný ceník Google, Gemini 3 Pro (kratší kontext) — ověřit při ostrém běhu."
+    },
+    "gemini-3-flash": {
+      "input_per_mtok_usd": 0.3,
+      "output_per_mtok_usd": 2.5,
+      "zdroj_pozn": "Veřejný ceník Google, Gemini 3 Flash — ověřit při ostrém běhu."
+    },
+    "mock": {
+      "input_per_mtok_usd": 0.0,
+      "output_per_mtok_usd": 0.0,
+      "zdroj_pozn": "Mock adapter neplatí nic — dry-run běh má nulovou cenu."
+    }
+  }
+}
