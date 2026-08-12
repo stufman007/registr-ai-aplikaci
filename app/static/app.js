@@ -100,9 +100,11 @@
     sync();
   }
 
-  // Per-sloupcové filtry seznamu registru (registry_list.html). Selecty se
-  // odešlou automaticky při změně — textové filtry (název, vlastník) ne,
-  // ty čekají na Enter (nativní chování `<input>` v `<form>`) nebo tlačítko
+  // Per-sloupcové filtry seznamu registru (registry_list.html). Checkboxy
+  // (tier/signál/stav/provider — multiple choice, OR uvnitř sloupce) i
+  // dřívější selecty sdílejí `data-autosubmit`: změna odešle formulář
+  // rovnou. Textové filtry (název, vlastník) auto-submit nemají, ty čekají
+  // na Enter (nativní chování `<input>` v `<form>`) nebo tlačítko
   // „Filtrovat". Formulář je obyčejný GET `<form>` — funguje i bez JS, tohle
   // je čistě UX vylepšení. Žádný inline handler (CSP): delegace přes
   // `data-registry-filters` / `data-autosubmit`.
@@ -119,10 +121,30 @@
     });
   }
 
+  // Multiple choice dropdown filtrů (`<details class="filter-multi">` +
+  // checkboxy uvnitř) se bez pomoci nezavře kliknutím mimo sebe — to je
+  // nativní chování `<details>`. Klik kamkoli mimo otevřený dropdown ho
+  // zavře; klik uvnitř (vč. na checkbox) neprovede nic navíc.
+  function initFilterMultiOutsideClick() {
+    var panels = document.querySelectorAll(".filter-multi");
+    if (!panels.length) {
+      return;
+    }
+
+    document.addEventListener("click", function (event) {
+      panels.forEach(function (details) {
+        if (details.open && !details.contains(event.target)) {
+          details.open = false;
+        }
+      });
+    });
+  }
+
   function init() {
     initComponentRows();
     initSpravceToggle();
     initRegistryFilters();
+    initFilterMultiOutsideClick();
   }
 
   if (document.readyState === "loading") {

@@ -37,18 +37,25 @@ PAGE_SIZE = 20
 MAX_TEXT_FILTER_LEN = 100
 
 
-def _parse_enum_filter(enum_cls: type[_EnumT], raw: str | None) -> _EnumT | None:
-    """Převede hodnotu query parametru na člena enumu podle jména.
+def _parse_enum_filter_multi(enum_cls: type[_EnumT], raw: list[str]) -> tuple[_EnumT, ...]:
+    """Převede opakované hodnoty query parametru na členy enumu (multiple choice).
 
-    Prázdná nebo neznámá hodnota vždy znamená „bez filtru" — nikdy chybu
-    (uživatel jen ručně upravil URL).
+    Uvnitř sloupce se hodnoty kombinují přes OR (viz `.in_()` v dotazu).
+    Neznámá hodnota se tiše zahodí, zbytek platí — nikdy chyba (uživatel jen
+    ručně upravil URL). Duplicity se odstraní, pořadí prvního výskytu se
+    zachová (stabilní pro render checkboxů i pro `to_query_params`).
     """
-    if not raw:
-        return None
-    try:
-        return enum_cls[raw]
-    except KeyError:
-        return None
+    result: list[_EnumT] = []
+    seen: set[_EnumT] = set()
+    for value in raw:
+        try:
+            member = enum_cls[value]
+        except KeyError:
+            continue
+        if member not in seen:
+            seen.add(member)
+            result.append(member)
+    return tuple(result)
 
 
 def _parse_text_filter(raw: str | None) -> str | None:
@@ -62,14 +69,19 @@ def _parse_text_filter(raw: str | None) -> str | None:
     return trimmed or None
 
 
-def _parse_signal_filter(raw: str | None) -> str | None:
-    """Validuje `signal` proti whitelistu zkratek (`ALLOWED_FLAGS`).
+def _parse_signal_filter_multi(raw: list[str]) -> tuple[str, ...]:
+    """Validuje opakované hodnoty `signal` proti whitelistu (`ALLOWED_FLAGS`).
 
-    Neznámá hodnota → bez filtru (stejná konvence jako u enum filtrů).
+    Stejná konvence jako `_parse_enum_filter_multi`: neznámá hodnota se
+    zahodí, zbytek platí, duplicity se odstraní se zachováním pořadí.
     """
-    if not raw:
-        return None
-    return raw if raw in ALLOWED_FLAGS else None
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in raw:
+        if value in ALLOWED_FLAGS and value not in seen:
+            seen.add(value)
+            result.append(value)
+    return tuple(result)
 
 
 def _escape_like(value: str) -> str:
@@ -100,14 +112,19 @@ def _parse_page(raw: str | None) -> int:
 @dataclass(frozen=True)
 class RegistryFilters:
     """Aktivní filtry seznamu registru — jeden objekt místo šesti parametrů
-    protahovaných přes query, statement builder i paginaci."""
+    protahovaných přes query, statement builder i paginaci.
 
-    stav: Stav | None = None
-    tier: Tier | None = None
+    `stav`, `tier`, `signal`, `provider` jsou multiple choice (výběr více
+    hodnot v jednom sloupci se kombinuje přes OR); mezi sloupci navzájem
+    platí AND — beze změny oproti jednohodnotové verzi filtrů.
+    """
+
+    stav: tuple[Stav, ...] = ()
+    tier: tuple[Tier, ...] = ()
     nazev: str | None = None
     vlastnik: str | None = None
-    signal: str | None = None
-    provider: Provider | None = None
+    signal: tuple[str, ...] = ()
+    provider: tuple[Provider, ...] = ()
 
     def is_active(self) -> bool:
         return any(
@@ -116,18 +133,18 @@ class RegistryFilters:
 
     def to_query_params(self) -> list[tuple[str, str]]:
         params: list[tuple[str, str]] = []
-        if self.stav is not None:
-            params.append(("stav", self.stav.name))
-        if self.tier is not None:
-            params.append(("tier", self.tier.name))
+        for s in self.stav:
+            params.append(("stav", s.name))
+        for t in self.tier:
+            params.append(("tier", t.name))
         if self.nazev:
             params.append(("nazev", self.nazev))
         if self.vlastnik:
             params.append(("vlastnik", self.vlastnik))
-        if self.signal:
-            params.append(("signal", self.signal))
-        if self.provider is not None:
-            params.append(("provider", self.provider.name))
+        for sig in self.signal:
+            params.append(("signal", sig))
+        for p in self.provider:
+            params.append(("provider", p.name))
         return params
 
 
@@ -149,13 +166,14 @@ def _signal_filter_clause(signal: str):
     return func.cast(Application.klasifikace_priznaky, String).like(pattern)
 
 
-def _provider_filter_clause(provider: Provider):
-    """EXISTS subquery: aplikace má aspoň jednu komponentu daného providera."""
+def _provider_filter_clause(providers: tuple[Provider, ...]):
+    """EXISTS subquery: aplikace má aspoň jednu komponentu s providerem
+    z vybrané množiny (`IN`, tedy OR mezi vybranými providery)."""
     return (
         select(AiComponent.id)
         .where(
             AiComponent.application_id == Application.id,
-            AiComponent.provider == provider,
+            AiComponent.provider.in_(providers),
         )
         .exists()
     )
@@ -175,12 +193,12 @@ def list_applications(
     request: Request,
     user: Annotated[SessionUser, Depends(require_user)],
     db: Annotated[Session, Depends(get_db)],
-    stav: Annotated[str | None, Query()] = None,
-    tier: Annotated[str | None, Query()] = None,
+    stav: Annotated[list[str], Query()] = [],  # noqa: B006 — FastAPI čte, nemutuje
+    tier: Annotated[list[str], Query()] = [],  # noqa: B006
     nazev: Annotated[str | None, Query()] = None,
     vlastnik: Annotated[str | None, Query()] = None,
-    signal: Annotated[str | None, Query()] = None,
-    provider: Annotated[str | None, Query()] = None,
+    signal: Annotated[list[str], Query()] = [],  # noqa: B006
+    provider: Annotated[list[str], Query()] = [],  # noqa: B006
     zobrazit: Annotated[str | None, Query()] = None,
     strana: Annotated[str | None, Query()] = None,
 ) -> HTMLResponse:
@@ -190,11 +208,14 @@ def list_applications(
     vidí místo toho vyřazené záznamy; u ne-admina se parametr tiše ignoruje —
     nikdy nesmí uvidět vyřazený záznam jen podle URL.
 
-    Filtry (všechny volitelné, kombinují se přes AND):
+    Filtry (všechny volitelné; mezi sloupci se kombinují přes AND):
     - `nazev`, `vlastnik` — textové „obsahuje" (case-insensitive), `vlastnik`
-      hledá v `vlastnik_jmeno` i `vlastnik_email`.
-    - `stav`, `tier`, `provider` — enum podle jména; neznámá hodnota = bez
-      filtru (uživatel jen ručně upravil URL, nikdy chyba).
+      hledá v `vlastnik_jmeno` i `vlastnik_email`. Jednohodnotové.
+    - `stav`, `tier`, `provider`, `signal` — multiple choice: opakovaný query
+      parametr (`?tier=MALA&tier=VELKA`), uvnitř sloupce se hodnoty
+      kombinují přes OR. Neznámá hodnota se tiše zahodí, zbytek platí
+      (uživatel jen ručně upravil URL, nikdy chyba). Jedna hodnota funguje
+      stejně jako dřív (zpětná kompatibilita).
     - `signal` — GDPR/AI-ACT/DORA přes `klasifikace_priznaky` (JSON sloupec),
       viz `_signal_filter_clause`.
 
@@ -204,12 +225,12 @@ def list_applications(
     show_deleted = user.is_admin and zobrazit == "vyrazene"
 
     filters = RegistryFilters(
-        stav=_parse_enum_filter(Stav, stav),
-        tier=_parse_enum_filter(Tier, tier),
+        stav=_parse_enum_filter_multi(Stav, stav),
+        tier=_parse_enum_filter_multi(Tier, tier),
         nazev=_parse_text_filter(nazev),
         vlastnik=_parse_text_filter(vlastnik),
-        signal=_parse_signal_filter(signal),
-        provider=_parse_enum_filter(Provider, provider),
+        signal=_parse_signal_filter_multi(signal),
+        provider=_parse_enum_filter_multi(Provider, provider),
     )
 
     stmt = select(Application).where(
@@ -217,10 +238,10 @@ def list_applications(
         if show_deleted
         else Application.deleted_at.is_(None)
     )
-    if filters.stav is not None:
-        stmt = stmt.where(Application.stav == filters.stav)
-    if filters.tier is not None:
-        stmt = stmt.where(Application.klasifikace == filters.tier)
+    if filters.stav:
+        stmt = stmt.where(Application.stav.in_(filters.stav))
+    if filters.tier:
+        stmt = stmt.where(Application.klasifikace.in_(filters.tier))
     if filters.nazev:
         stmt = stmt.where(
             Application.nazev.ilike(f"%{_escape_like(filters.nazev)}%", escape="\\")
@@ -234,8 +255,8 @@ def list_applications(
             )
         )
     if filters.signal:
-        stmt = stmt.where(_signal_filter_clause(filters.signal))
-    if filters.provider is not None:
+        stmt = stmt.where(or_(*(_signal_filter_clause(sig) for sig in filters.signal)))
+    if filters.provider:
         stmt = stmt.where(_provider_filter_clause(filters.provider))
 
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()

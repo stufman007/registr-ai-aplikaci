@@ -60,36 +60,56 @@
           >
         </th>
         <th>
-          <select name="tier" aria-label="Filtrovat podle tieru" data-autosubmit>
-            <option value="">Vše</option>
-            {% for t in all_tier %}
-            <option value="{{ t.name }}" {% if filter_tier == t %}selected{% endif %}>{{ t.label() }}</option>
-            {% endfor %}
-          </select>
+          <details class="filter-multi" data-filter-multi>
+            <summary aria-label="Filtrovat podle tieru">{% if not filter_tier %}Vše{% elif filter_tier | length == 1 %}{{ filter_tier[0].label() }}{% else %}{{ filter_tier | length }} vybrané{% endif %}</summary>
+            <div class="filter-multi__panel">
+              {% for t in all_tier %}
+              <label class="filter-multi__option">
+                <input type="checkbox" name="tier" value="{{ t.name }}" data-autosubmit {% if t in filter_tier %}checked{% endif %}>
+                {{ t.label() }}
+              </label>
+              {% endfor %}
+            </div>
+          </details>
         </th>
         <th>
-          <select name="signal" aria-label="Filtrovat podle signálu" data-autosubmit>
-            <option value="">Vše</option>
-            {% for sig in all_signal %}
-            <option value="{{ sig }}" {% if filter_signal == sig %}selected{% endif %}>{{ sig }}</option>
-            {% endfor %}
-          </select>
+          <details class="filter-multi" data-filter-multi>
+            <summary aria-label="Filtrovat podle signálu">{% if not filter_signal %}Vše{% elif filter_signal | length == 1 %}{{ filter_signal[0] }}{% else %}{{ filter_signal | length }} vybrané{% endif %}</summary>
+            <div class="filter-multi__panel">
+              {% for sig in all_signal %}
+              <label class="filter-multi__option">
+                <input type="checkbox" name="signal" value="{{ sig }}" data-autosubmit {% if sig in filter_signal %}checked{% endif %}>
+                {{ sig }}
+              </label>
+              {% endfor %}
+            </div>
+          </details>
         </th>
         <th>
-          <select name="stav" aria-label="Filtrovat podle stavu" data-autosubmit>
-            <option value="">Vše</option>
-            {% for s in all_stav %}
-            <option value="{{ s.name }}" {% if filter_stav == s %}selected{% endif %}>{{ s.label() }}</option>
-            {% endfor %}
-          </select>
+          <details class="filter-multi" data-filter-multi>
+            <summary aria-label="Filtrovat podle stavu">{% if not filter_stav %}Vše{% elif filter_stav | length == 1 %}{{ filter_stav[0].label() }}{% else %}{{ filter_stav | length }} vybrané{% endif %}</summary>
+            <div class="filter-multi__panel">
+              {% for s in all_stav %}
+              <label class="filter-multi__option">
+                <input type="checkbox" name="stav" value="{{ s.name }}" data-autosubmit {% if s in filter_stav %}checked{% endif %}>
+                {{ s.label() }}
+              </label>
+              {% endfor %}
+            </div>
+          </details>
         </th>
         <th>
-          <select name="provider" aria-label="Filtrovat podle providera komponent" data-autosubmit>
-            <option value="">Vše</option>
-            {% for p in all_provider %}
-            <option value="{{ p.name }}" {% if filter_provider == p %}selected{% endif %}>{{ p.label() }}</option>
-            {% endfor %}
-          </select>
+          <details class="filter-multi" data-filter-multi>
+            <summary aria-label="Filtrovat podle providera komponent">{% if not filter_provider %}Vše{% elif filter_provider | length == 1 %}{{ filter_provider[0].label() }}{% else %}{{ filter_provider | length }} vybrané{% endif %}</summary>
+            <div class="filter-multi__panel">
+              {% for p in all_provider %}
+              <label class="filter-multi__option">
+                <input type="checkbox" name="provider" value="{{ p.name }}" data-autosubmit {% if p in filter_provider %}checked{% endif %}>
+                {{ p.label() }}
+              </label>
+              {% endfor %}
+            </div>
+          </details>
           <button type="submit">Filtrovat</button>
         </th>
       </tr>

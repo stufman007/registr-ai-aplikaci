@@ -359,8 +359,7 @@ td:last-child .tooltip__text {
   vertical-align: top;
 }
 
-.filters-row input[type="search"],
-.filters-row select {
+.filters-row input[type="search"] {
   width: 100%;
   max-width: 12rem;
   padding: 0.3rem 0.4rem;
@@ -370,6 +369,69 @@ td:last-child .tooltip__text {
   font-size: 0.85rem;
   background: var(--color-surface);
   color: var(--color-text);
+}
+
+/* Multiple choice dropdown filtry (tier/signál/stav/provider) — `<details>`
+   se `<summary>` jako uzavřený „select"-like ovladač a checkboxy v panelu
+   absolutně pozicovaném pod ním, aby neroztahoval výšku řádku ani tabulku. */
+.filter-multi {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  max-width: 12rem;
+}
+
+.filter-multi summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.filter-multi summary::-webkit-details-marker {
+  display: none;
+}
+
+.filter-multi[open] summary {
+  border-color: var(--color-accent);
+}
+
+.filter-multi__panel {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  z-index: 20;
+  min-width: 10rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.filter-multi__option {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0;
+  font-weight: normal;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* Poslední sloupec filtrů je u pravého kraje tabulky — vystředěný/levý
+   panel by utekl mimo viewport (stejný problém a fix jako u tooltipů). */
+.filters-row th:last-child .filter-multi__panel {
+  left: auto;
+  right: 0;
 }
 
 .filters-row button[type="submit"] {

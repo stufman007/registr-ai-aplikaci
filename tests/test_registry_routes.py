@@ -337,6 +337,152 @@ def test_unknown_signal_and_provider_filter_values_are_ignored() -> None:
     assert aplikace.nazev in response.text
 
 
+# --- Multiple choice (více hodnot v jednom sloupci, OR uvnitř sloupce) ------
+
+
+def test_multi_tier_filter_combines_as_or() -> None:
+    mala = _seed(nazev="Malá aplikace", klasifikace=Tier.MALA)
+    stredni = _seed(nazev="Střední aplikace", klasifikace=Tier.STREDNI)
+    velka = _seed(nazev="Velká aplikace", klasifikace=Tier.VELKA)
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"tier": ["MALA", "VELKA"]})
+    assert response.status_code == 200
+    assert mala.nazev in response.text
+    assert velka.nazev in response.text
+    assert stredni.nazev not in response.text
+
+
+def test_multi_provider_filter_combines_as_or() -> None:
+    anthropic_app = _seed(
+        nazev="Anthropic aplikace",
+        components=[
+            AiComponent(
+                provider=Provider.ANTHROPIC,
+                model_name="claude-3",
+                purpose="Sumarizace",
+                hosting_type=HostingType.EXTERNI_API,
+            )
+        ],
+    )
+    openai_app = _seed(
+        nazev="OpenAI aplikace",
+        components=[
+            AiComponent(
+                provider=Provider.OPENAI,
+                model_name="gpt-4o",
+                purpose="Sumarizace",
+                hosting_type=HostingType.EXTERNI_API,
+            )
+        ],
+    )
+    azure_app = _seed(
+        nazev="Azure aplikace",
+        components=[
+            AiComponent(
+                provider=Provider.AZURE,
+                model_name="gpt-4",
+                purpose="Sumarizace",
+                hosting_type=HostingType.EXTERNI_API,
+            )
+        ],
+    )
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"provider": ["ANTHROPIC", "OPENAI"]})
+    assert response.status_code == 200
+    assert anthropic_app.nazev in response.text
+    assert openai_app.nazev in response.text
+    assert azure_app.nazev not in response.text
+
+
+def test_multi_signal_filter_combines_as_or() -> None:
+    with_gdpr = _seed(
+        nazev="GDPR aplikace",
+        klasifikace_priznaky=[
+            {
+                "zkratka": "GDPR",
+                "titulek": "GDPR — údaje klientů",
+                "detail": "Aplikace zpracovává osobní údaje klientů.",
+                "reason_code": "PERSONAL_DATA_PROCESSING",
+                "source": "deterministic_rule",
+            }
+        ],
+    )
+    with_dora = _seed(
+        nazev="DORA aplikace",
+        klasifikace_priznaky=[
+            {
+                "zkratka": "DORA",
+                "titulek": "DORA — finanční sektor",
+                "detail": "Aplikace podporuje regulovanou finanční službu.",
+                "reason_code": "FINANCIAL_SERVICE",
+                "source": "deterministic_rule",
+            }
+        ],
+    )
+    without_signal = _seed(nazev="Bez signálu")
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"signal": ["GDPR", "DORA"]})
+    assert response.status_code == 200
+    assert with_gdpr.nazev in response.text
+    assert with_dora.nazev in response.text
+    assert without_signal.nazev not in response.text
+
+
+def test_multi_filter_within_column_or_combines_with_other_columns_as_and() -> None:
+    """Uvnitř sloupce OR (tier), mezi sloupci AND (tier × stav) — spolu."""
+    match_mala = _seed(nazev="Shoda malá", klasifikace=Tier.MALA, stav=Stav.PILOT)
+    match_velka = _seed(nazev="Shoda velká", klasifikace=Tier.VELKA, stav=Stav.PILOT)
+    wrong_stav = _seed(nazev="Malá provoz", klasifikace=Tier.MALA, stav=Stav.PROVOZ)
+    wrong_tier = _seed(nazev="Střední pilot", klasifikace=Tier.STREDNI, stav=Stav.PILOT)
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"tier": ["MALA", "VELKA"], "stav": "PILOT"})
+    assert response.status_code == 200
+    assert match_mala.nazev in response.text
+    assert match_velka.nazev in response.text
+    assert wrong_stav.nazev not in response.text
+    assert wrong_tier.nazev not in response.text
+
+
+def test_pagination_preserves_repeated_multi_filter_values() -> None:
+    _seed_many(15, klasifikace=Tier.MALA)
+    _seed_many(15, klasifikace=Tier.VELKA)
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"tier": ["MALA", "VELKA"]})
+    assert response.status_code == 200
+    assert "tier=MALA" in response.text
+    assert "tier=VELKA" in response.text
+    assert "strana=2" in response.text
+
+
+def test_unknown_value_in_multi_filter_list_is_dropped_valid_ones_kept() -> None:
+    pilot = _seed(nazev="Pilotní nástroj", stav=Stav.PILOT)
+    provoz = _seed(nazev="Provozní nástroj", stav=Stav.PROVOZ)
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"stav": ["NESMYSL", "PILOT"]})
+    assert response.status_code == 200
+    assert pilot.nazev in response.text
+    assert provoz.nazev not in response.text
+
+
+def test_single_multi_filter_value_behaves_like_before() -> None:
+    """Zpětná kompatibilita: jedna hodnota v novém multi-choice parametru
+    filtruje stejně jako dřív s jednohodnotovým `stav`."""
+    pilot = _seed(nazev="Pilotní nástroj", stav=Stav.PILOT)
+    provoz = _seed(nazev="Provozní nástroj", stav=Stav.PROVOZ)
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"stav": "PILOT"})
+    assert response.status_code == 200
+    assert pilot.nazev in response.text
+    assert provoz.nazev not in response.text
+
+
 def test_clear_filters_link_only_shown_when_filter_active() -> None:
     _seed(nazev="Test aplikace")
     _login(username="user", email="user@example.com", roles=["user"])
@@ -546,7 +692,9 @@ def test_list_component_details_element_present_when_multiple_components() -> No
     response = client.get("/")
     assert response.status_code == 200
     assert multi.nazev in response.text
-    assert "<details" in response.text
+    # `<details` samo o sobě teď matchuje i sloupcové multi-choice filtry
+    # (vždy přítomné) — kontrolujeme konkrétně komponentové rozbalení.
+    assert 'class="inline-details"' in response.text
 
 
 def test_list_no_details_element_when_single_component() -> None:
@@ -566,4 +714,6 @@ def test_list_no_details_element_when_single_component() -> None:
     response = client.get("/")
     assert response.status_code == 200
     assert single.nazev in response.text
-    assert "<details" not in response.text
+    # Sloupcové multi-choice filtry taky renderují `<details>` — kontrolujeme
+    # konkrétně, že komponentové rozbalení (>1 komponenta) chybí.
+    assert 'class="inline-details"' not in response.text
