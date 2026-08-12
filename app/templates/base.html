@@ -20,6 +20,9 @@
       {% set header_user = current_user(request) %}
       {% if header_user %}
         <a href="/pravidla">Pravidla vyhodnocení</a>
+        {% if header_user.is_admin %}
+        <a href="/admin/oddeleni">Oddělení</a>
+        {% endif %}
         <span class="user-name">{{ header_user.username }}</span>
         {% for role in header_user.roles | sort %}
           <span class="tooltip badge badge--role">

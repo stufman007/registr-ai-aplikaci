@@ -77,9 +77,28 @@
     });
   }
 
+  // Checkbox „Vlastník je zároveň technický správce" (app_form.html) skryje
+  // sekci technického správce. Skutečné převzetí hodnot vlastníka do polí
+  // správce dělá server při uložení (nespoléhat na JS) — tohle je jen UI.
+  function initSpravceToggle() {
+    var checkbox = document.querySelector("[data-spravce-toggle]");
+    var section = document.getElementById("spravce-section");
+    if (!checkbox || !section) {
+      return;
+    }
+
+    function sync() {
+      section.hidden = checkbox.checked;
+    }
+
+    checkbox.addEventListener("change", sync);
+    sync();
+  }
+
   function init() {
     initComponentRows();
     initBackButton();
+    initSpravceToggle();
   }
 
   if (document.readyState === "loading") {

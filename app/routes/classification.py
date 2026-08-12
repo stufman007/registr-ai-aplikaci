@@ -37,7 +37,7 @@ from app.auth import SessionUser, require_user
 from app.db import get_db
 from app.flash import set_flash
 from app.llm import gateway
-from app.models import AiComponent, Application
+from app.models import AiComponent, Application, Department
 from app.questionnaire import CHOICE_QUESTIONS, FREE_TEXT_QUESTION, QUESTIONS
 from app.schemas import (
     AuditAction,
@@ -86,16 +86,25 @@ _find_duplicates = gateway.find_duplicates
 
 
 def _empty_values() -> dict[str, Any]:
-    """Prázdný formulář — jedna prázdná komponenta, žádná odpověď vybraná."""
+    """Prázdný formulář — jedna prázdná komponenta, žádná odpověď vybraná.
+
+    `spravce_je_vlastnik` je u nového záznamu defaultně zaškrtnuté (schválený
+    PO požadavek) — pole technického správce se skryjí a při uložení se
+    převezmou z vlastníka, dokud uživatel checkbox sám neodškrtne.
+    """
     return {
         "nazev": "",
         "stav": Stav.VYVOJ.name,
         "vlastnik_jmeno": "",
         "vlastnik_email": "",
+        "vlastnik_oddeleni": "",
         "zastupce_jmeno": "",
         "zastupce_email": "",
+        "zastupce_oddeleni": "",
         "spravce_jmeno": "",
         "spravce_email": "",
+        "spravce_oddeleni": "",
+        "spravce_je_vlastnik": True,
         "komponenty": [_empty_component()],
         "odpovedi": {question.field: "" for question in QUESTIONS},
     }
@@ -161,16 +170,50 @@ def _check_text(
         errors[name] = f"{popisek} smí mít nejvýš {max_length} znaků."
 
 
+def _active_department_names(db: Session) -> list[str]:
+    """Aktivní oddělení pro roletku formuláře (spec kap. 4.5), seřazená podle názvu.
+
+    Prázdný seznam (číselník nemá žádnou aktivní položku) je záměrně platný
+    stav — `_validate_contacts` pak pole oddělení nevyžaduje (graceful
+    degradation), aby chybějící administrace číselníku nezablokovala založení
+    záznamu.
+    """
+    rows = db.execute(
+        select(Department.nazev)
+        .where(Department.aktivni.is_(True))
+        .order_by(Department.nazev)
+    ).all()
+    return [row[0] for row in rows]
+
+
 def _validate_contacts(
-    form: FormData, values: dict[str, Any], errors: dict[str, str]
+    form: FormData,
+    values: dict[str, Any],
+    errors: dict[str, str],
+    active_departments: list[str],
 ) -> None:
     role_popisky = {
         "vlastnik": "Vlastník",
         "zastupce": "Zástupce",
         "spravce": "Technický správce",
     }
+
+    # Checkbox „Vlastník je zároveň technický správce" — když je zaškrtnutý,
+    # pole správce se ve formuláři skryjí (app.js) a validace/hodnoty správce
+    # se dál v této funkci PŘEVEZMOU z vlastníka na backendu (spec: nespoléhat
+    # na JS). Zástupce zůstává vždy samostatný.
+    spravce_je_vlastnik = _field(form, "spravce_je_vlastnik") == "1"
+    values["spravce_je_vlastnik"] = spravce_je_vlastnik
+
     for role, popisek in role_popisky.items():
-        jmeno_field, email_field = f"{role}_jmeno", f"{role}_email"
+        if role == "spravce" and spravce_je_vlastnik:
+            continue  # doplní se po smyčce z hodnot vlastníka
+
+        jmeno_field, email_field, oddeleni_field = (
+            f"{role}_jmeno",
+            f"{role}_email",
+            f"{role}_oddeleni",
+        )
 
         jmeno = _field(form, jmeno_field)
         values[jmeno_field] = jmeno
@@ -181,6 +224,20 @@ def _validate_contacts(
         _check_text(errors, email_field, email, f"{popisek} — e-mail", MAX_SHORT_TEXT)
         if email_field not in errors and not _EMAIL_RE.match(email):
             errors[email_field] = f"{popisek} — e-mail nemá platný tvar."
+
+        oddeleni = _field(form, oddeleni_field)
+        values[oddeleni_field] = oddeleni
+        # Prázdný číselník → pole se nevyžaduje (viz `_active_department_names`).
+        if active_departments:
+            if not oddeleni:
+                errors[oddeleni_field] = f"{popisek} — vyberte oddělení."
+            elif oddeleni not in active_departments:
+                errors[oddeleni_field] = f"{popisek} — neplatné oddělení."
+
+    if spravce_je_vlastnik:
+        values["spravce_jmeno"] = values["vlastnik_jmeno"]
+        values["spravce_email"] = values["vlastnik_email"]
+        values["spravce_oddeleni"] = values["vlastnik_oddeleni"]
 
 
 def _validate_components(
@@ -258,7 +315,9 @@ def _validate_answers(
     values["odpovedi"] = odpovedi
 
 
-def _validate_form(form: FormData) -> tuple[dict[str, Any], dict[str, str]]:
+def _validate_form(
+    form: FormData, active_departments: list[str]
+) -> tuple[dict[str, Any], dict[str, str]]:
     """Ruční validace formuláře. Vrací `(hodnoty pro re-render, chyby po polích)`."""
     values: dict[str, Any] = {}
     errors: dict[str, str] = {}
@@ -270,7 +329,7 @@ def _validate_form(form: FormData) -> tuple[dict[str, Any], dict[str, str]]:
     stav = _field(form, "stav")
     values["stav"] = stav if stav in Stav.__members__ else Stav.VYVOJ.name
 
-    _validate_contacts(form, values, errors)
+    _validate_contacts(form, values, errors, active_departments)
     _validate_components(form, values, errors)
     _validate_answers(form, values, errors)
 
@@ -285,6 +344,7 @@ def _render_form(
     user: SessionUser,
     values: dict[str, Any],
     errors: dict[str, str],
+    db: Session,
     status_code: int = status.HTTP_200_OK,
     *,
     form_action: str = "/aplikace/nova",
@@ -306,6 +366,7 @@ def _render_form(
             "providers": list(Provider),
             "hosting_types": list(HostingType),
             "all_stav": list(Stav),
+            "departments": _active_department_names(db),
             "max_components": MAX_COMPONENTS,
             "form_action": form_action,
             "cancel_url": cancel_url,
@@ -320,11 +381,12 @@ def _render_form(
 def new_application_form(
     request: Request,
     user: Annotated[SessionUser, Depends(require_user)],
+    db: Annotated[Session, Depends(get_db)],
 ) -> HTMLResponse:
     """Formulář nového záznamu; rozdělaný wizard se předvyplní ze session."""
     state = _get_state(request)
     values = state["values"] if state else _empty_values()
-    return _render_form(request, user, values, {})
+    return _render_form(request, user, values, {}, db)
 
 
 @router.post("/aplikace/nova", dependencies=[Depends(verify_csrf)])
@@ -335,9 +397,9 @@ async def submit_new_application(
 ) -> Response:
     """Validace vstupu → uložení do session → kontrola duplicit (spec kap. 6)."""
     form = await request.form()
-    values, errors = _validate_form(form)
+    values, errors = _validate_form(form, _active_department_names(db))
     if errors:
-        return _render_form(request, user, values, errors, status.HTTP_400_BAD_REQUEST)
+        return _render_form(request, user, values, errors, db, status.HTTP_400_BAD_REQUEST)
 
     state: dict[str, Any] = {"values": values, "duplicate_reason": None}
     request.session[WIZARD_SESSION_KEY] = state
@@ -690,10 +752,13 @@ def _build_application(
         popis=values["odpovedi"][FREE_TEXT_QUESTION.field],
         vlastnik_jmeno=values["vlastnik_jmeno"],
         vlastnik_email=values["vlastnik_email"],
+        vlastnik_oddeleni=values["vlastnik_oddeleni"] or None,
         zastupce_jmeno=values["zastupce_jmeno"],
         zastupce_email=values["zastupce_email"],
+        zastupce_oddeleni=values["zastupce_oddeleni"] or None,
         spravce_jmeno=values["spravce_jmeno"],
         spravce_email=values["spravce_email"],
+        spravce_oddeleni=values["spravce_oddeleni"] or None,
         klasifikace_llm=llm_tier,
         klasifikace_minimum=minimum.tier,
         klasifikace=vysledny,

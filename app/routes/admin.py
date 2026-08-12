@@ -23,26 +23,30 @@ zbytkem registru (`registry.py`, `edit.py`).
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.datastructures import FormData
 
 from app.auth import SessionUser, require_admin
 from app.db import get_db
 from app.flash import set_flash
-from app.models import Application
+from app.models import Application, Department
 from app.questionnaire import CHOICE_QUESTIONS, FREE_TEXT_QUESTION
-from app.routes.classification import MAX_LONG_TEXT
+from app.routes.classification import MAX_LONG_TEXT, MAX_SHORT_TEXT
 from app.schemas import AuditAction, DotaznikOdpovedi, KomponentaInfo, Tier
 from app.security import VersionConflict, verify_csrf
 from app.services import history
 from app.services.policy import MinimumResult, compute_minimum, effective_tier
 from app.services.regulatory import Flag, compute_flags
 from app.templating import templates
+
+logger = logging.getLogger(__name__)
 
 #: `/admin/ping` — kontrolní endpoint role z Fáze 8, beze změny.
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -366,3 +370,133 @@ async def reclassify_submit(
     db.commit()
     set_flash(request, f"Aplikace „{application.nazev}“ byla překlasifikována.")
     return _redirect_to_detail(application_id)
+
+
+# --- GET/POST /admin/oddeleni --------------------------------------------------
+#
+# Číselník oddělení (spec kap. 4.5): spravuje admin, přidání/deaktivace místo
+# mazání (konzistentní s no-hard-delete filozofií zbytku aplikace). Nejsou to
+# záznamy registru, takže se nezapisují do `record_history` — stačí `logger.info`.
+
+
+def _redirect_to_departments() -> RedirectResponse:
+    return RedirectResponse("/admin/oddeleni", status_code=status.HTTP_303_SEE_OTHER)
+
+
+def _load_department(db: Session, department_id: str) -> Department:
+    department = db.get(Department, department_id)
+    if department is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Oddělení nenalezeno."
+        )
+    return department
+
+
+def _render_departments(
+    request: Request,
+    user: SessionUser,
+    db: Session,
+    error: str = "",
+    nazev: str = "",
+    status_code: int = status.HTTP_200_OK,
+) -> HTMLResponse:
+    departments = db.execute(select(Department).order_by(Department.nazev)).scalars().all()
+    return templates.TemplateResponse(
+        request,
+        "admin_departments.html",
+        {
+            "user": user,
+            "departments": departments,
+            "error": error,
+            "nazev": nazev,
+        },
+        status_code=status_code,
+    )
+
+
+@router.get("/oddeleni", response_class=HTMLResponse, name="admin_departments")
+def department_list(
+    request: Request,
+    user: Annotated[SessionUser, Depends(require_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> HTMLResponse:
+    """Seznam oddělení + formulář přidání (spec kap. 4.5, 12)."""
+    return _render_departments(request, user, db)
+
+
+@router.post("/oddeleni", dependencies=[Depends(verify_csrf)], name="admin_department_create")
+async def create_department(
+    request: Request,
+    user: Annotated[SessionUser, Depends(require_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> Response:
+    """Přidání nové položky číselníku — unikátní název, max délka (spec kap. 4.5)."""
+    form = await request.form()
+    raw = form.get("nazev")
+    nazev = raw.strip() if isinstance(raw, str) else ""
+
+    error = ""
+    if not nazev:
+        error = "Název oddělení je povinné pole."
+    elif len(nazev) > MAX_SHORT_TEXT:
+        error = f"Název oddělení smí mít nejvýš {MAX_SHORT_TEXT} znaků."
+    elif (
+        db.execute(select(Department).where(Department.nazev == nazev)).scalar_one_or_none()
+        is not None
+    ):
+        error = f"Oddělení „{nazev}“ už v číselníku existuje."
+
+    if error:
+        return _render_departments(
+            request, user, db, error=error, nazev=nazev, status_code=status.HTTP_400_BAD_REQUEST
+        )
+
+    department = Department(nazev=nazev)
+    db.add(department)
+    db.commit()
+
+    logger.info("Admin %s přidal oddělení „%s“", user.username, nazev)
+    set_flash(request, f"Oddělení „{nazev}“ bylo přidáno.")
+    return _redirect_to_departments()
+
+
+@router.post(
+    "/oddeleni/{department_id}/deaktivovat",
+    dependencies=[Depends(verify_csrf)],
+    name="admin_department_deactivate",
+)
+async def deactivate_department(
+    department_id: str,
+    request: Request,
+    user: Annotated[SessionUser, Depends(require_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> Response:
+    """Deaktivace — zmizí z roletky formuláře, historické záznamy beze změny."""
+    department = _load_department(db, department_id)
+    department.aktivni = False
+    db.commit()
+
+    logger.info("Admin %s deaktivoval oddělení „%s“", user.username, department.nazev)
+    set_flash(request, f"Oddělení „{department.nazev}“ bylo deaktivováno.")
+    return _redirect_to_departments()
+
+
+@router.post(
+    "/oddeleni/{department_id}/aktivovat",
+    dependencies=[Depends(verify_csrf)],
+    name="admin_department_activate",
+)
+async def activate_department(
+    department_id: str,
+    request: Request,
+    user: Annotated[SessionUser, Depends(require_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> Response:
+    """Opětovná aktivace — znovu se nabízí v roletce formuláře."""
+    department = _load_department(db, department_id)
+    department.aktivni = True
+    db.commit()
+
+    logger.info("Admin %s aktivoval oddělení „%s“", user.username, department.nazev)
+    set_flash(request, f"Oddělení „{department.nazev}“ bylo aktivováno.")
+    return _redirect_to_departments()

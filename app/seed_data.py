@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import AiComponent, Application
+from app.models import AiComponent, Application, Department
 from app.questionnaire import CHOICE_QUESTIONS, FREE_TEXT_QUESTION
 from app.schemas import (
     AuditAction,
@@ -47,6 +47,11 @@ from app.schemas import (
 from app.services import history
 from app.services.policy import MinimumResult, compute_minimum, effective_tier
 from app.services.regulatory import compute_flags
+
+
+#: Výchozí položky číselníku oddělení (spec kap. 4.5, 12) — vloží se jen do
+#: prázdné tabulky `departments`, stejná idempotence jako `seed_if_empty`.
+DEFAULT_DEPARTMENTS: tuple[str, ...] = ("IT", "Risk", "Compliance", "Obchod", "Finance")
 
 
 @dataclass(frozen=True)
@@ -425,24 +430,37 @@ def _seed_definitions() -> list[_SeedApp]:
     ]
 
 
-def _build_application(seed: _SeedApp) -> tuple[Application, Tier]:
+def _build_application(seed: _SeedApp, index: int) -> tuple[Application, Tier]:
     """Sestaví `Application` + připojené `AiComponent` řádky. Tier a signály
-    se počítají skutečnými deterministickými funkcemi, ne opsané ručně."""
+    se počítají skutečnými deterministickými funkcemi, ne opsané ručně.
+
+    Oddělení jednotlivých kontaktů se přiřazují round-robin z
+    `DEFAULT_DEPARTMENTS` podle pořadí aplikace (`index`) — deterministické,
+    bez nutnosti ručně dopisovat oddělení ke každému z 8 seed kontaktů zvlášť.
+    """
     components_info = [c.to_info() for c in seed.components]
     minimum = compute_minimum(seed.answers, components_info)
     flags = compute_flags(seed.answers, components_info)
     effective = effective_tier(seed.llm_tier, minimum)
     zduvodneni = _compose_zduvodneni(seed.zduvodneni_navrhu, minimum, seed.llm_tier)
 
+    pocet = len(DEFAULT_DEPARTMENTS)
+    vlastnik_oddeleni = DEFAULT_DEPARTMENTS[index % pocet]
+    zastupce_oddeleni = DEFAULT_DEPARTMENTS[(index + 1) % pocet]
+    spravce_oddeleni = DEFAULT_DEPARTMENTS[(index + 2) % pocet]
+
     application = Application(
         nazev=seed.nazev,
         popis=seed.answers.ucel,
         vlastnik_jmeno=seed.vlastnik.jmeno,
         vlastnik_email=seed.vlastnik.email,
+        vlastnik_oddeleni=vlastnik_oddeleni,
         zastupce_jmeno=seed.zastupce.jmeno,
         zastupce_email=seed.zastupce.email,
+        zastupce_oddeleni=zastupce_oddeleni,
         spravce_jmeno=seed.spravce.jmeno,
         spravce_email=seed.spravce.email,
+        spravce_oddeleni=spravce_oddeleni,
         klasifikace_llm=seed.llm_tier,
         klasifikace_minimum=minimum.tier,
         klasifikace=effective,
@@ -468,6 +486,18 @@ def _build_application(seed: _SeedApp) -> tuple[Application, Tier]:
     return application, effective
 
 
+def _seed_departments_if_empty(session: Session) -> None:
+    """Vloží výchozí číselník oddělení, jen pokud je tabulka `departments`
+    prázdná — nezávisle na tom, jestli jsou už naseedované aplikace, aby
+    `docker compose down -v` + startup vždy nastartovaly s vyplněným
+    číselníkem (spec kap. 4.5, 12)."""
+    already_seeded = session.execute(select(Department.id).limit(1)).first()
+    if already_seeded is not None:
+        return
+    session.add_all(Department(nazev=name) for name in DEFAULT_DEPARTMENTS)
+    session.commit()
+
+
 def seed_if_empty(session: Session) -> int:
     """Vloží syntetické aplikace, jen pokud je tabulka `applications` prázdná.
 
@@ -475,13 +505,15 @@ def seed_if_empty(session: Session) -> int:
     DB — idempotentní). Každá aplikace dostane historii `CREATE` + `CLASSIFY`
     (vyřazená navíc `RETIRE`), stejně jako ostrý wizard.
     """
+    _seed_departments_if_empty(session)
+
     already_seeded = session.execute(select(Application.id).limit(1)).first()
     if already_seeded is not None:
         return 0
 
     inserted = 0
-    for seed in _seed_definitions():
-        application, effective = _build_application(seed)
+    for index, seed in enumerate(_seed_definitions()):
+        application, effective = _build_application(seed, index)
         session.add(application)
         session.flush()  # přidělí application.id, potřebné pro historii
 

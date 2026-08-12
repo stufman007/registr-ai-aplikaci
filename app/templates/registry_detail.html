@@ -56,9 +56,9 @@
   <h2>Karta aplikace</h2>
   <table class="kv-table">
     <tr><th>Popis</th><td>{{ application.popis }}</td></tr>
-    <tr><th>Vlastník</th><td>{{ application.vlastnik_jmeno }} ({{ application.vlastnik_email }})</td></tr>
-    <tr><th>Zástupce</th><td>{{ application.zastupce_jmeno }} ({{ application.zastupce_email }})</td></tr>
-    <tr><th>Technický správce</th><td>{{ application.spravce_jmeno }} ({{ application.spravce_email }})</td></tr>
+    <tr><th>Vlastník</th><td>{{ application.vlastnik_jmeno }} ({{ application.vlastnik_email }}){% if application.vlastnik_oddeleni %}, {{ application.vlastnik_oddeleni }}{% endif %}</td></tr>
+    <tr><th>Zástupce</th><td>{{ application.zastupce_jmeno }} ({{ application.zastupce_email }}){% if application.zastupce_oddeleni %}, {{ application.zastupce_oddeleni }}{% endif %}</td></tr>
+    <tr><th>Technický správce</th><td>{{ application.spravce_jmeno }} ({{ application.spravce_email }}){% if application.spravce_oddeleni %}, {{ application.spravce_oddeleni }}{% endif %}</td></tr>
     <tr><th>Stav</th><td>{% set stav = application.stav %}{% include "_stav.html" %}</td></tr>
     <tr><th>Založil</th><td>{{ application.created_by }} ({{ application.created_at.strftime("%d.%m.%Y %H:%M") }})</td></tr>
     <tr><th>Naposledy upravil</th><td>{{ application.updated_by }} ({{ application.updated_at.strftime("%d.%m.%Y %H:%M") }})</td></tr>

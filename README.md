@@ -109,6 +109,13 @@ Docker síť není mezi „veřejnou" a „interní" URL Keycloaku rozdíl).
   `LLM_PROVIDER` je buď `mock`, nebo `anthropic` s vyplněným
   `ANTHROPIC_API_KEY`; s `anthropic` bez klíče selže první LLM volání (fail
   fast), ne start kontejneru.
+- **Po aktualizaci na verzi s číselníkem oddělení chybí sloupce/tabulka
+  (`no such column: applications.vlastnik_oddeleni` apod.)** — `create_all`
+  (bez migrací, vědomý dluh, spec kap. 10) nedělá `ALTER TABLE` na existující
+  DB. Lokální `registr.db`/named volume založené starší verzí aplikace nové
+  sloupce ani tabulku `departments` nedostanou samy. Řešení: `docker compose
+  down -v` (smaže volume vč. SQLite a Keycloak dat, tedy i seed) a `docker
+  compose up` znovu — čistý start založí schéma i seed nanovo.
 
 ## Master Prompt
 

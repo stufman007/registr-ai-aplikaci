@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Oddělení — Registr interních AI aplikací{% endblock %}
+
+{% block content %}
+<h1>Číselník oddělení</h1>
+<p class="note">
+  Oddělení nabízená v roletce na kartě aplikace (vlastník, zástupce, technický
+  správce). Deaktivace místo mazání — historické záznamy s deaktivovaným
+  oddělením se dál zobrazí beze změny, jen zmizí z nabídky pro nové/upravené
+  záznamy.
+</p>
+
+{% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+
+<form method="post" action="/admin/oddeleni" class="app-form">
+  {{ csrf_field(request) }}
+  <label class="field">
+    Název nového oddělení
+    <input type="text" name="nazev" maxlength="200" value="{{ nazev | default('') }}" required>
+  </label>
+  <div class="form-actions">
+    <button type="submit">Přidat oddělení</button>
+  </div>
+</form>
+
+<table class="kv-table">
+  <thead>
+    <tr>
+      <th>Název</th>
+      <th>Stav</th>
+      <th>Akce</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for department in departments %}
+    <tr>
+      <td>{{ department.nazev }}</td>
+      <td>{% if department.aktivni %}aktivní{% else %}neaktivní{% endif %}</td>
+      <td>
+        {% if department.aktivni %}
+        <form method="post" action="/admin/oddeleni/{{ department.id }}/deaktivovat" class="inline-action-form">
+          {{ csrf_field(request) }}
+          <button type="submit">Deaktivovat</button>
+        </form>
+        {% else %}
+        <form method="post" action="/admin/oddeleni/{{ department.id }}/aktivovat" class="inline-action-form">
+          {{ csrf_field(request) }}
+          <button type="submit">Aktivovat</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="3" class="note">Zatím žádné oddělení v číselníku.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

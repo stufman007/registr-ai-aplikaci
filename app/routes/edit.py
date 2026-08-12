@@ -40,6 +40,7 @@ from app.models import AiComponent, Application
 from app.questionnaire import CHOICE_QUESTIONS, FREE_TEXT_QUESTION
 from app.routes import classification
 from app.routes.classification import (
+    _active_department_names,
     _compose_zduvodneni,
     _empty_component,
     _field,
@@ -96,7 +97,13 @@ def _load_editable_application(
 
 
 def _application_to_values(application: Application) -> dict[str, Any]:
-    """Předvyplní formulář ze záznamu — stejný tvar jako `_validate_form`."""
+    """Předvyplní formulář ze záznamu — stejný tvar jako `_validate_form`.
+
+    `spravce_je_vlastnik` se dopočítá zpětně: checkbox je předzaškrtnutý jen
+    pokud se pole správce shodují se vlastníkem ve všech třech položkách
+    (jméno, e-mail, oddělení) — jinak by editace tiše přepsala záznamy se
+    záměrně odlišným správcem.
+    """
     komponenty = [
         {
             "provider": c.provider.name,
@@ -106,15 +113,24 @@ def _application_to_values(application: Application) -> dict[str, Any]:
         }
         for c in application.components
     ]
+    spravce_je_vlastnik = (
+        application.spravce_jmeno == application.vlastnik_jmeno
+        and application.spravce_email == application.vlastnik_email
+        and application.spravce_oddeleni == application.vlastnik_oddeleni
+    )
     return {
         "nazev": application.nazev,
         "stav": application.stav.name,
         "vlastnik_jmeno": application.vlastnik_jmeno,
         "vlastnik_email": application.vlastnik_email,
+        "vlastnik_oddeleni": application.vlastnik_oddeleni or "",
         "zastupce_jmeno": application.zastupce_jmeno,
         "zastupce_email": application.zastupce_email,
+        "zastupce_oddeleni": application.zastupce_oddeleni or "",
         "spravce_jmeno": application.spravce_jmeno,
         "spravce_email": application.spravce_email,
+        "spravce_oddeleni": application.spravce_oddeleni or "",
+        "spravce_je_vlastnik": spravce_je_vlastnik,
         "komponenty": komponenty or [_empty_component()],
         "odpovedi": dict(application.dotaznik_odpovedi),
     }
@@ -129,10 +145,13 @@ def _field_snapshot(values: dict[str, Any]) -> dict[str, str]:
         "stav": values["stav"],
         "vlastnik_jmeno": values["vlastnik_jmeno"],
         "vlastnik_email": values["vlastnik_email"],
+        "vlastnik_oddeleni": values["vlastnik_oddeleni"],
         "zastupce_jmeno": values["zastupce_jmeno"],
         "zastupce_email": values["zastupce_email"],
+        "zastupce_oddeleni": values["zastupce_oddeleni"],
         "spravce_jmeno": values["spravce_jmeno"],
         "spravce_email": values["spravce_email"],
+        "spravce_oddeleni": values["spravce_oddeleni"],
         "popis": odpovedi[FREE_TEXT_QUESTION.field],
     }
     for question in CHOICE_QUESTIONS:
@@ -183,10 +202,13 @@ def _apply_field_changes(
     application.stav = Stav[values["stav"]]
     application.vlastnik_jmeno = values["vlastnik_jmeno"]
     application.vlastnik_email = values["vlastnik_email"]
+    application.vlastnik_oddeleni = values["vlastnik_oddeleni"] or None
     application.zastupce_jmeno = values["zastupce_jmeno"]
     application.zastupce_email = values["zastupce_email"]
+    application.zastupce_oddeleni = values["zastupce_oddeleni"] or None
     application.spravce_jmeno = values["spravce_jmeno"]
     application.spravce_email = values["spravce_email"]
+    application.spravce_oddeleni = values["spravce_oddeleni"] or None
     application.popis = values["odpovedi"][FREE_TEXT_QUESTION.field]
     application.dotaznik_odpovedi = dict(values["odpovedi"])
 
@@ -245,6 +267,7 @@ def edit_application_form(
         user,
         values,
         {},
+        db,
         form_action=f"/aplikace/{application_id}/upravit",
         cancel_url=f"/aplikace/{application_id}",
         is_edit=True,
@@ -264,13 +287,14 @@ async def submit_edit(
     application = _load_editable_application(db, application_id, user)
 
     form = await request.form()
-    values, errors = _validate_form(form)
+    values, errors = _validate_form(form, _active_department_names(db))
     if errors:
         return _render_form(
             request,
             user,
             values,
             errors,
+            db,
             status.HTTP_400_BAD_REQUEST,
             form_action=f"/aplikace/{application_id}/upravit",
             cancel_url=f"/aplikace/{application_id}",

@@ -37,10 +37,18 @@ class Application(Base):
 
     vlastnik_jmeno: Mapped[str] = mapped_column(nullable=False)
     vlastnik_email: Mapped[str] = mapped_column(nullable=False)
+    # `*_oddeleni` jsou záměrně obyčejný text, NE FK na `Department.id` (spec
+    # kap. 4.5). Číselník oddělení je jen pomocník pro konzistentní vstup do
+    # roletky formuláře — historická hodnota na kartě aplikace nesmí zmizet
+    # ani se změnit, když admin položku číselníku přejmenuje nebo deaktivuje.
+    # Nullable kvůli starým záznamům založeným před touto verzí.
+    vlastnik_oddeleni: Mapped[str | None] = mapped_column(nullable=True)
     zastupce_jmeno: Mapped[str] = mapped_column(nullable=False)
     zastupce_email: Mapped[str] = mapped_column(nullable=False)
+    zastupce_oddeleni: Mapped[str | None] = mapped_column(nullable=True)
     spravce_jmeno: Mapped[str] = mapped_column(nullable=False)
     spravce_email: Mapped[str] = mapped_column(nullable=False)
+    spravce_oddeleni: Mapped[str | None] = mapped_column(nullable=True)
 
     # Původní návrh LLM (nebo fallback baseline). Nullable — před první
     # klasifikací (nebo pokud fallback nezapsal nic) nemusí existovat.
@@ -142,3 +150,19 @@ class LlmAudit(Base):
     uspech: Mapped[bool] = mapped_column(nullable=False)
     error_code: Mapped[str | None] = mapped_column(nullable=True)
     fallback_used: Mapped[bool] = mapped_column(nullable=False, default=False)
+
+
+class Department(Base):
+    """Číselník oddělení (spec kap. 4.5) — spravuje admin (`/admin/oddeleni`).
+
+    Deaktivace nahrazuje mazání (konzistentní s no-hard-delete filozofií
+    zbytku aplikace): `aktivni=False` položku jen vyřadí z roletky formuláře,
+    historické záznamy s touto hodnotou zůstávají beze změny — právě proto
+    `Application.*_oddeleni` NENÍ FK na tuto tabulku, viz poznámka u `Application`.
+    """
+
+    __tablename__ = "departments"
+
+    id: Mapped[str] = mapped_column(primary_key=True, default=_uuid_hex)
+    nazev: Mapped[str] = mapped_column(unique=True, nullable=False)
+    aktivni: Mapped[bool] = mapped_column(nullable=False, default=True)

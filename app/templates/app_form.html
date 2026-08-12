@@ -47,11 +47,21 @@
     <h2>Kontakty</h2>
     <p class="note">Vlastník odpovídá za obsah záznamu, technický správce za provoz.</p>
 
+    {% if not departments %}
+    <p class="note form-warning">
+      Nejsou definována žádná oddělení — požádejte admina, ať je založí v
+      administraci. Formulář funguje i bez nich, pole oddělení je pak volitelné.
+    </p>
+    {% endif %}
+
     {% for role, popisek in [
         ("vlastnik", "Vlastník"),
         ("zastupce", "Zástupce"),
         ("spravce", "Technický správce")
     ] %}
+    {% if role == "spravce" %}
+    <div id="spravce-section" data-spravce-section {% if values.spravce_je_vlastnik %}hidden{% endif %}>
+    {% endif %}
     <fieldset class="contact">
       <legend>{{ popisek }}</legend>
 
@@ -72,7 +82,31 @@
         <span class="field-error">{{ errors[role ~ '_email'] }}</span>
         {% endif %}
       </label>
+
+      <label class="field">
+        Oddělení
+        <select name="{{ role }}_oddeleni" {% if not departments %}disabled{% endif %}>
+          <option value="">— vyberte —</option>
+          {% for department in departments %}
+          <option value="{{ department }}" {% if values[role ~ '_oddeleni'] == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+        {% if errors[role ~ '_oddeleni'] %}
+        <span class="field-error">{{ errors[role ~ '_oddeleni'] }}</span>
+        {% endif %}
+      </label>
+
+      {% if role == "vlastnik" %}
+      <label class="field field--checkbox">
+        <input type="checkbox" name="spravce_je_vlastnik" value="1" data-spravce-toggle
+               {% if values.spravce_je_vlastnik %}checked{% endif %}>
+        Vlastník je zároveň technický správce
+      </label>
+      {% endif %}
     </fieldset>
+    {% if role == "spravce" %}
+    </div>
+    {% endif %}
     {% endfor %}
   </section>
 

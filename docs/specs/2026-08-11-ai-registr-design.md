@@ -99,9 +99,9 @@ OIDC username se shoduje s `created_by`.
 | `id` | UUID | |
 | `nazev` | text, povinné | max délka dle validace |
 | `popis` | text, povinné | vstup pro klasifikaci i duplicity |
-| `vlastnik_jmeno`, `vlastnik_email` | text | osobní údaj |
-| `zastupce_jmeno`, `zastupce_email` | text | osobní údaj |
-| `spravce_jmeno`, `spravce_email` | text | technický správce; osobní údaj |
+| `vlastnik_jmeno`, `vlastnik_email`, `vlastnik_oddeleni` | text | osobní údaj; oddělení nullable, viz 4.5 |
+| `zastupce_jmeno`, `zastupce_email`, `zastupce_oddeleni` | text | osobní údaj; oddělení nullable, viz 4.5 |
+| `spravce_jmeno`, `spravce_email`, `spravce_oddeleni` | text | technický správce; osobní údaj; oddělení nullable, viz 4.5 |
 | `klasifikace_llm` | enum nullable | původní návrh LLM (nebo fallback baseline) |
 | `klasifikace_minimum` | enum | deterministicky spočtený policy floor |
 | `klasifikace` | enum `MALA`/`STREDNI`/`VELKA` | effective tier; vždy `>= klasifikace_minimum` |
@@ -165,6 +165,27 @@ otevřeně popsaný v README (produkční retence auditu = governance rozhodnut�
 | `fallback_used` | bool |
 
 **Nikdy prompt ani odpověď** — ani pseudonymizovaně. Retence 90 dní, čistí se při startu.
+
+### 4.5 Číselník oddělení (`departments`)
+
+Předdefinovaný seznam, spravuje admin (`GET/POST /admin/oddeleni`, viz kap. 12).
+
+| Pole | Poznámka |
+|---|---|
+| `id` | UUID |
+| `nazev` | text, unikátní, max délka jako ostatní krátká pole |
+| `aktivni` | bool, default `true` — deaktivace místo mazání (konzistentní s 4.1) |
+
+`Application.vlastnik_oddeleni` / `zastupce_oddeleni` / `spravce_oddeleni` **NEJSOU
+FK** na tuto tabulku, jen text vybraný z roletky v okamžiku uložení. Číselník je
+pomocník pro konzistentní vstup, ne zdroj pravdy karty — přejmenování nebo
+deaktivace položky nesmí změnit ani schovat historickou hodnotu už uloženou
+na kartě aplikace. Deaktivovaná položka zmizí jen z roletky formuláře.
+
+Prázdný číselník (žádná aktivní položka) je platný stav: pole oddělení se ve
+formuláři zobrazí jako disabled select s upozorněním „Nejsou definována žádná
+oddělení — požádejte admina" a validace ho pro tento případ nevyžaduje —
+chybějící administrace číselníku nesmí zablokovat založení záznamu.
 
 ## 5. AI funkce 1: klasifikace
 
@@ -475,6 +496,22 @@ Dockerfile, docker-compose.yaml, .env.example, README.md, seed.py, requirements.
   `.env`, `*.db`. Závislosti pinované (`requirements.txt` s `==`).
 - **Seed**: ~8 fiktivních aplikací (fiktivní jména/e-maily na `@example.com`), různé
   tiery, stavy, signály, více komponent, jedna vyřazená — ať je na videu co ukazovat.
+  Součástí seedu je i výchozí číselník ~5 oddělení (IT, Risk, Compliance, Obchod,
+  Finance), přiřazený ke kontaktům seed aplikací.
+- **Admin obrazovka „Oddělení"** (`/admin/oddeleni`, jen role `admin`): seznam
+  číselníku + formulář přidání (unikátní název, max délka) + tlačítko
+  aktivovat/deaktivovat u každé položky (POST + CSRF). Není záznam registru,
+  proto se nezapisuje do `record_history` — stačí `logger.info` s kým a kdy.
+- **Formulář založení/editace**: u vlastníka, zástupce i technického správce
+  roletka oddělení (aktivní položky číselníku); prázdný číselník → select
+  disabled + upozornění, pole se nevyžaduje (viz kap. 4.5). Checkbox
+  „Vlastník je zároveň technický správce" u vlastníka — **výchozí stav
+  zaškrtnuto** u nového záznamu. Zaškrtnuto: pole technického správce se ve
+  formuláři skryjí (vanilla JS, `data-spravce-toggle`/`data-spravce-section`,
+  žádný inline handler kvůli CSP) a backend při uložení hodnoty správce
+  (jméno, e-mail, oddělení) **převezme z vlastníka** — validace polí správce
+  se v tomto případě přeskočí. Odškrtnuto: pole se zobrazí a validují se
+  samostatně. Zástupce zůstává vždy nezávislý na vlastníkovi.
 
 ## 13. Retence dat
 

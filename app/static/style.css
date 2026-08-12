@@ -432,6 +432,16 @@ section + section {
   font: inherit;
 }
 
+.field--checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.form-warning {
+  color: var(--color-accent);
+}
+
 .contact,
 .question {
   border: 1px solid var(--color-border);
