@@ -8,11 +8,13 @@ nad touto kontrolou.
 
 from __future__ import annotations
 
+from math import ceil
 from typing import Annotated, TypeVar
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.auth import SessionUser, check_owner_or_admin, require_user
@@ -24,6 +26,9 @@ from app.templating import templates
 router = APIRouter(tags=["registry"])
 
 _EnumT = TypeVar("_EnumT", Stav, Tier)
+
+#: Max. řádků na stránku seznamu registru.
+PAGE_SIZE = 20
 
 
 def _parse_enum_filter(enum_cls: type[_EnumT], raw: str | None) -> _EnumT | None:
@@ -40,6 +45,40 @@ def _parse_enum_filter(enum_cls: type[_EnumT], raw: str | None) -> _EnumT | None
         return None
 
 
+def _parse_page(raw: str | None) -> int:
+    """Převede `strana` z query stringu na kladné celé číslo.
+
+    Neplatná nebo chybějící hodnota → strana 1 (nikdy chyba — uživatel jen
+    ručně upravil URL). Horní mez (počet stránek) se ořezává až po zjištění
+    celkového počtu záznamů, viz `list_applications`.
+    """
+    if not raw:
+        return 1
+    try:
+        page = int(raw)
+    except ValueError:
+        return 1
+    return page if page >= 1 else 1
+
+
+def _pagination_query(
+    stav_filter: Stav | None,
+    tier_filter: Tier | None,
+    show_deleted: bool,
+    page: int,
+) -> str:
+    """Query string pro odkaz „Předchozí"/„Další" — zachovává aktivní filtry."""
+    params: list[tuple[str, str]] = []
+    if stav_filter is not None:
+        params.append(("stav", stav_filter.name))
+    if tier_filter is not None:
+        params.append(("tier", tier_filter.name))
+    if show_deleted:
+        params.append(("zobrazit", "vyrazene"))
+    params.append(("strana", str(page)))
+    return urlencode(params)
+
+
 @router.get("/", response_class=HTMLResponse, name="registry_list")
 def list_applications(
     request: Request,
@@ -48,12 +87,16 @@ def list_applications(
     stav: Annotated[str | None, Query()] = None,
     tier: Annotated[str | None, Query()] = None,
     zobrazit: Annotated[str | None, Query()] = None,
+    strana: Annotated[str | None, Query()] = None,
 ) -> HTMLResponse:
     """Seznam registru (spec kap. 14, obrazovka 2).
 
     Výchozí pohled: jen `deleted_at IS NULL`. Admin s `?zobrazit=vyrazene`
     vidí místo toho vyřazené záznamy; u ne-admina se parametr tiše ignoruje —
     nikdy nesmí uvidět vyřazený záznam jen podle URL.
+
+    Stránkováno po `PAGE_SIZE` řádcích (`?strana=`, 1-based). Stránka mimo
+    rozsah (moc velká i neplatná hodnota) se tiše ořeže na poslední platnou.
     """
     show_deleted = user.is_admin and zobrazit == "vyrazene"
 
@@ -69,9 +112,20 @@ def list_applications(
         stmt = stmt.where(Application.stav == stav_filter)
     if tier_filter is not None:
         stmt = stmt.where(Application.klasifikace == tier_filter)
-    stmt = stmt.order_by(Application.nazev)
 
-    applications = db.execute(stmt).scalars().all()
+    total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+    total_pages = max(1, ceil(total / PAGE_SIZE))
+    page = min(_parse_page(strana), total_pages)
+
+    applications = (
+        db.execute(
+            stmt.order_by(Application.nazev)
+            .limit(PAGE_SIZE)
+            .offset((page - 1) * PAGE_SIZE)
+        )
+        .scalars()
+        .all()
+    )
 
     return templates.TemplateResponse(
         request,
@@ -84,6 +138,18 @@ def list_applications(
             "filter_tier": tier_filter,
             "all_stav": list(Stav),
             "all_tier": list(Tier),
+            "page": page,
+            "total_pages": total_pages,
+            "prev_query": (
+                _pagination_query(stav_filter, tier_filter, show_deleted, page - 1)
+                if page > 1
+                else None
+            ),
+            "next_query": (
+                _pagination_query(stav_filter, tier_filter, show_deleted, page + 1)
+                if page < total_pages
+                else None
+            ),
         },
     )
 

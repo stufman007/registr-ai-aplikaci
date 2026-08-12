@@ -5,13 +5,23 @@
                   "plny" (detail, celá tabulka); default "plny" #}
 {% set mode = mode | default("plny") %}
 {% if mode == "zkraceny" %}
-  {% if components %}
-    {{ components[0].provider.label() }} / {{ components[0].model_name }}
-    {% if components | length > 1 %}
-      <span class="badge">+{{ components | length - 1 }}</span>
-    {% endif %}
-  {% else %}
+  {% if not components %}
     <span class="note">Bez komponent</span>
+  {% elif components | length == 1 %}
+    {{ components[0].provider.label() }} / {{ components[0].model_name }}
+  {% else %}
+    {# Víc než jedna komponenta — první + rozbalitelný zbytek (bez JS). #}
+    <details class="inline-details">
+      <summary>
+        {{ components[0].provider.label() }} / {{ components[0].model_name }}
+        <span class="badge">+{{ components | length - 1 }}</span>
+      </summary>
+      <ul class="inline-details__list">
+        {% for komponenta in components[1:] %}
+        <li>{{ komponenta.provider.label() }} / {{ komponenta.model_name }}</li>
+        {% endfor %}
+      </ul>
+    </details>
   {% endif %}
 {% else %}
   {% if components %}

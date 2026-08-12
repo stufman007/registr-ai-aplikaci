@@ -22,8 +22,9 @@ from sqlalchemy.pool import StaticPool
 from app.auth import SESSION_USER_KEY
 from app.db import Base, get_db
 from app.main import app
-from app.models import Application
-from app.schemas import Stav, Tier
+from app.models import AiComponent, Application
+from app.schemas import HostingType, Provider, Stav, Tier
+from app.ui_texts import REVIEW_BADGE_TOOLTIP
 
 # --- in-memory DB sdílená přes všechny requesty v tomto souboru ------------
 
@@ -128,6 +129,11 @@ def _seed(**overrides: object) -> Application:
         return entity
     finally:
         session.close()
+
+
+def _seed_many(count: int, **overrides: object) -> list[Application]:
+    """Nasadí `count` aplikací s předvídatelnými, abecedně řaditelnými názvy."""
+    return [_seed(nazev=f"Aplikace {i:02d}", **overrides) for i in range(1, count + 1)]
 
 
 # --- GET / -------------------------------------------------------------------
@@ -245,3 +251,118 @@ def test_detail_retired_hidden_for_regular_user_but_visible_for_admin() -> None:
     assert response.status_code == 200
     assert "VYŘAZENO" in response.text
     assert retired.delete_reason in response.text
+
+
+# --- Paginace seznamu registru -------------------------------------------------
+
+
+def test_pagination_first_page_shows_twenty_of_twentyfive() -> None:
+    _seed_many(25)
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "Aplikace 01" in response.text
+    assert "Aplikace 20" in response.text
+    assert "Aplikace 21" not in response.text
+    assert "strana 1 z 2" in response.text
+
+
+def test_pagination_second_page_shows_remaining_five() -> None:
+    _seed_many(25)
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"strana": "2"})
+    assert response.status_code == 200
+    assert "Aplikace 21" in response.text
+    assert "Aplikace 25" in response.text
+    assert "Aplikace 01" not in response.text
+    assert "strana 2 z 2" in response.text
+
+
+def test_pagination_out_of_range_page_falls_back_to_last_valid() -> None:
+    _seed_many(25)
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"strana": "99"})
+    assert response.status_code == 200
+    assert "strana 2 z 2" in response.text
+    assert "Aplikace 21" in response.text
+
+
+def test_pagination_invalid_page_value_falls_back_to_first() -> None:
+    _seed_many(25)
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"strana": "nesmysl"})
+    assert response.status_code == 200
+    assert "strana 1 z 2" in response.text
+    assert "Aplikace 01" in response.text
+
+
+def test_pagination_links_preserve_active_filters() -> None:
+    _seed_many(25, stav=Stav.PILOT)
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"stav": "PILOT"})
+    assert response.status_code == 200
+    assert "stav=PILOT" in response.text
+    assert "strana=2" in response.text
+
+
+# --- Tooltip texty a rozbalitelné komponenty ------------------------------------
+
+
+def test_detail_review_badge_shows_tooltip_text() -> None:
+    active = _seed(review_required=True)
+    _login(username="jana.nova", email="jana.nova@example.com", roles=["user"])
+
+    response = client.get(f"/aplikace/{active.id}")
+    assert response.status_code == 200
+    assert REVIEW_BADGE_TOOLTIP in response.text
+
+
+def test_list_component_details_element_present_when_multiple_components() -> None:
+    multi = _seed(
+        nazev="Multi-komponentní nástroj",
+        components=[
+            AiComponent(
+                provider=Provider.OPENAI,
+                model_name="gpt-4o",
+                purpose="Sumarizace",
+                hosting_type=HostingType.EXTERNI_API,
+            ),
+            AiComponent(
+                provider=Provider.ANTHROPIC,
+                model_name="claude-3",
+                purpose="Klasifikace",
+                hosting_type=HostingType.EXTERNI_API,
+            ),
+        ],
+    )
+    _login(username="jana.nova", email="jana.nova@example.com", roles=["user"])
+
+    response = client.get("/")
+    assert response.status_code == 200
+    assert multi.nazev in response.text
+    assert "<details" in response.text
+
+
+def test_list_no_details_element_when_single_component() -> None:
+    single = _seed(
+        nazev="Jednoduchý nástroj",
+        components=[
+            AiComponent(
+                provider=Provider.OPENAI,
+                model_name="gpt-4o",
+                purpose="Sumarizace",
+                hosting_type=HostingType.EXTERNI_API,
+            )
+        ],
+    )
+    _login(username="jana.nova", email="jana.nova@example.com", roles=["user"])
+
+    response = client.get("/")
+    assert response.status_code == 200
+    assert single.nazev in response.text
+    assert "<details" not in response.text

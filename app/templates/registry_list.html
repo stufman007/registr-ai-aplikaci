@@ -61,7 +61,10 @@
       <td>
         <a href="/aplikace/{{ polozka.id }}">{{ polozka.nazev }}</a>
         {% if polozka.review_required %}
-        <span class="badge badge--review">vyžaduje review</span>
+        <span class="tooltip badge badge--review">
+          vyžaduje review
+          <span class="tooltip__text">{{ review_badge_tooltip }}</span>
+        </span>
         {% endif %}
       </td>
       <td>{{ polozka.vlastnik_jmeno }}</td>
@@ -74,7 +77,10 @@
         {% set flags = polozka.klasifikace_priznaky %}
         {% include "_flags.html" %}
       </td>
-      <td>{{ polozka.stav.label() }}</td>
+      <td>
+        {% set stav = polozka.stav %}
+        {% include "_stav.html" %}
+      </td>
       <td>
         {% set components = polozka.components %}
         {% set mode = "zkraceny" %}
@@ -84,6 +90,20 @@
     {% endfor %}
   </tbody>
 </table>
+
+<nav class="pagination" aria-label="Stránkování registru">
+  {% if prev_query %}
+  <a href="/?{{ prev_query }}">← Předchozí</a>
+  {% else %}
+  <span class="pagination__disabled">← Předchozí</span>
+  {% endif %}
+  <span class="pagination__status">strana {{ page }} z {{ total_pages }}</span>
+  {% if next_query %}
+  <a href="/?{{ next_query }}">Další →</a>
+  {% else %}
+  <span class="pagination__disabled">Další →</span>
+  {% endif %}
+</nav>
 {% else %}
 <p class="note">
   {% if show_deleted %}Žádné vyřazené záznamy.{% else %}Registr zatím neobsahuje žádné aktivní aplikace.{% endif %}

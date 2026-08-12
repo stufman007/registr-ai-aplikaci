@@ -1,0 +1,7 @@
+{# Partial: provozní stav aplikace s hover tooltipem (čisté CSS, bez JS).
+   Očekává v kontextu:
+     stav — Stav enum (VYVOJ/PILOT/PROVOZ/UTLUMENO) #}
+<span class="tooltip">
+  {{ stav.label() }}
+  <span class="tooltip__text">{{ stav_tooltip(stav) }}</span>
+</span>

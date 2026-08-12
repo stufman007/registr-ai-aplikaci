@@ -27,6 +27,7 @@ from app.routes import admin as admin_routes
 from app.routes import classification as classification_routes
 from app.routes import edit as edit_routes
 from app.routes import registry as registry_routes
+from app.routes import rules_info as rules_info_routes
 from app.security import CsrfError, SecurityHeadersMiddleware, VersionConflict
 from app.seed_data import seed_if_empty
 from app.services.policy import PolicyViolation
@@ -92,6 +93,7 @@ app.include_router(auth_router)
 # `/aplikace/{application_id}` a skončily na 404.
 app.include_router(classification_routes.router)
 app.include_router(edit_routes.router)
+app.include_router(rules_info_routes.router)
 app.include_router(registry_routes.router)
 app.include_router(admin_routes.router)
 app.include_router(admin_routes.aplikace_router)

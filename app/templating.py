@@ -14,6 +14,7 @@ from fastapi.templating import Jinja2Templates
 from app.auth import get_current_user
 from app.flash import pop_flash
 from app.security import csrf_field
+from app.ui_texts import REVIEW_BADGE_TOOLTIP, role_tooltip, stav_tooltip, tier_tooltip
 
 APP_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = APP_DIR / "templates"
@@ -26,3 +27,9 @@ templates.env.globals["csrf_field"] = csrf_field
 templates.env.globals["current_user"] = get_current_user
 # Flash hlášky po redirectu — `base.html` je vypíše a zároveň smaže ze session.
 templates.env.globals["pop_flash"] = pop_flash
+# Centralizované tooltip texty (app/ui_texts.py) — jedno místo pro všechny
+# šablony místo rozházených stringů.
+templates.env.globals["review_badge_tooltip"] = REVIEW_BADGE_TOOLTIP
+templates.env.globals["tier_tooltip"] = tier_tooltip
+templates.env.globals["stav_tooltip"] = stav_tooltip
+templates.env.globals["role_tooltip"] = role_tooltip

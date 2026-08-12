@@ -5,14 +5,21 @@
 {% block content %}
 {% if application.deleted_at %}
 <div class="retired-banner">
-  VYŘAZENO: {{ application.delete_reason }}
+  <span class="tooltip badge badge--retired">
+    VYŘAZENO
+    <span class="tooltip__text">{{ application.delete_reason }}</span>
+  </span>
+  {{ application.delete_reason }}
 </div>
 {% endif %}
 
 <h1>
   {{ application.nazev }}
   {% if application.review_required %}
-  <span class="badge badge--review">vyžaduje review</span>
+  <span class="tooltip badge badge--review">
+    vyžaduje review
+    <span class="tooltip__text">{{ review_badge_tooltip }}</span>
+  </span>
   {% endif %}
 </h1>
 
@@ -52,7 +59,7 @@
     <tr><th>Vlastník</th><td>{{ application.vlastnik_jmeno }} ({{ application.vlastnik_email }})</td></tr>
     <tr><th>Zástupce</th><td>{{ application.zastupce_jmeno }} ({{ application.zastupce_email }})</td></tr>
     <tr><th>Technický správce</th><td>{{ application.spravce_jmeno }} ({{ application.spravce_email }})</td></tr>
-    <tr><th>Stav</th><td>{{ application.stav.label() }}</td></tr>
+    <tr><th>Stav</th><td>{% set stav = application.stav %}{% include "_stav.html" %}</td></tr>
     <tr><th>Založil</th><td>{{ application.created_by }} ({{ application.created_at.strftime("%d.%m.%Y %H:%M") }})</td></tr>
     <tr><th>Naposledy upravil</th><td>{{ application.updated_by }} ({{ application.updated_at.strftime("%d.%m.%Y %H:%M") }})</td></tr>
     <tr><th>Verze (optimistic locking)</th><td>{{ application.version }}</td></tr>

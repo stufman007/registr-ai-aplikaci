@@ -2,12 +2,25 @@
    Očekává v kontextu:
      flags — seznam dictů {zkratka, titulek, detail, reason_code, source}
              (uložených v `applications.klasifikace_priznaky`)
-   Badge se zkratkou, hover tooltip s titulkem a detailem — čistě CSS, bez JS. #}
-{% for flag in flags %}
+   Badge se zkratkou, hover tooltip s titulkem a detailem — čistě CSS, bez JS.
+   Je-li signálů víc než `visible_count`, zbytek se schová do rozbalitelného
+   <details>/<summary> (bez JS), stejný vzor jako u koncentrovaných komponent
+   v _components.html. #}
+{% macro flag_badge(flag) %}
 <span class="tooltip badge-{{ flag.zkratka | lower }}">
   {{ flag.zkratka }}
   <span class="tooltip__text"><strong>{{ flag.titulek }}</strong><br>{{ flag.detail }}</span>
 </span>
-{% else %}
+{% endmacro %}
+{% set visible_count = 3 %}
+{% if not flags %}
 <span class="note">—</span>
-{% endfor %}
+{% elif flags | length <= visible_count %}
+  {% for flag in flags %}{{ flag_badge(flag) }}{% endfor %}
+{% else %}
+  {% for flag in flags[:visible_count] %}{{ flag_badge(flag) }}{% endfor %}
+  <details class="inline-details">
+    <summary><span class="badge">+{{ flags | length - visible_count }}</span></summary>
+    {% for flag in flags[visible_count:] %}{{ flag_badge(flag) }}{% endfor %}
+  </details>
+{% endif %}

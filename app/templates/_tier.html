@@ -1,12 +1,14 @@
 {# Partial: barevný štítek governance tieru (spec kap. 5.5).
    Očekává v kontextu:
      tier  — Tier enum (MALA/STREDNI/VELKA)
-     duvod — volitelné zdůvodnění; je-li vyplněné, štítek dostane hover tooltip #}
-{% if duvod %}
+     duvod — volitelné zdůvodnění konkrétního výsledku; je-li vyplněné,
+             přidá se do tooltipu za obecné vysvětlení tieru.
+   Tooltip (čisté CSS, `_tier_tooltip` global z app/ui_texts.py) se zobrazuje
+   vždy — vysvětluje, co daný tier znamená a že jde o interní klasifikaci. #}
 <span class="tooltip tier-{{ tier.name | lower }}">
   {{ tier.label() }}
-  <span class="tooltip__text">{{ duvod | truncate(160) }}</span>
+  <span class="tooltip__text">
+    {{ tier_tooltip(tier) }}
+    {% if duvod %}<br><strong>Zdůvodnění:</strong> {{ duvod | truncate(160) }}{% endif %}
+  </span>
 </span>
-{% else %}
-<span class="tier-{{ tier.name | lower }}">{{ tier.label() }}</span>
-{% endif %}

@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}Pravidla vyhodnocení — Registr interních AI aplikací{% endblock %}
+
+{% block content %}
+<h1>Pravidla vyhodnocení</h1>
+
+<div class="rules-intro">
+  <p>
+    Klasifikace aplikace se určuje kombinací tří prvků:
+  </p>
+  <ol>
+    <li><strong>AI návrh:</strong> Model napředvolí tier na základě obsahu a rizika.</li>
+    <li><strong>Deterministická pravidla:</strong> Na základě vašich odpovědí v dotazníku se
+        vypočítá <em>povinné minimum</em>. Nikdo nesmí jít pod toto minimum — je to tvrdá hranice.</li>
+    <li><strong>Vaše potvrzení:</strong> Vy (nebo admin) finalizujete klasifikaci.
+        Admin smí upravit jen v rozsahu pravidel (k minimu); běžný uživatel smí návrh
+        jen potvrdit nebo zvýšit.</li>
+  </ol>
+</div>
+
+<hr>
+
+<h2>Proč se ptáme na tato pole</h2>
+
+<p class="note">
+  Každá otázka v dotazníku informuje přinejmenším jedno eskalační pravidlo.
+  Odpověď se automaticky převádí na minimální tier — práce typu „zvolíme střední,
+  ať je to bezpečné" není možná.
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Otázka</th>
+      <th>K čemu slouží (která pravidla ji používají)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for q in questions %}
+    <tr>
+      <td>
+        <strong>Otázka {{ q.number }}:</strong> {{ q.text }}
+      </td>
+      <td>
+        {% if q.number == 2 %}
+          <em>Referenční informace:</em> Počet uživatelů usnadňuje analýzu škálování
+          a odhad dopadu.
+        {% elif q.number == 3 %}
+          <strong>Kritičnost procesu</strong> spouští pravidla:
+          <code>CRITICAL_PROCESS</code> (střední),
+          <code>CRITICAL_EXTERNAL_OUTPUT</code> (velká),
+          <code>DORA</code> (legislativní signál).
+        {% elif q.number == 4 %}
+          <strong>Osobní údaje</strong> spouští pravidla:
+          <code>CLIENT_PERSONAL_DATA</code> (střední),
+          <code>GDPR</code> (legislativní signál).
+        {% elif q.number == 5 %}
+          <strong>Rozhodování o lidech</strong> spouští pravidla:
+          <code>AUTO_DECISION_PERSON</code> (velká),
+          <code>AI-ACT</code> (legislativní signál).
+        {% elif q.number == 6 %}
+          <strong>Viditelnost výstupu mimo firmu</strong> kombinuje se kritičností —
+          spouští <code>CRITICAL_EXTERNAL_OUTPUT</code> (velká).
+        {% elif q.number == 7 %}
+          <strong>Citlivost dat</strong> spouští pravidla:
+          <code>HIGHLY_SENSITIVE_DATA</code> (střední),
+          <code>EXTERNAL_PROVIDER_SENSITIVE_DATA</code> (střední).
+        {% elif q.number == 8 %}
+          <strong>Autonomie (automatické akce)</strong> spouští pravidla:
+          <code>AUTONOMOUS_ACTION</code> (střední),
+          <code>AUTONOMOUS_HIGH_IMPACT</code> (velká).
+        {% elif q.number == 9 %}
+          <strong>Dopad chyby</strong> kombinuje se autonomií —
+          spouští <code>AUTONOMOUS_HIGH_IMPACT</code> (velká).
+        {% else %}
+          {% if q.number == 1 %}
+            <em>Volný text:</em> Popis účelu aplikace. Usnadňuje kontext a ověření
+            správnosti zbývajících odpovědí.
+          {% endif %}
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<hr>
+
+<h2>Eskalační pravidla (verze {{ rules_version }})</h2>
+
+<p class="note">
+  Každé pravidlo má <strong>reason_code</strong> (interní identifikátor) a definuje
+  minimální tier, který se musí zajistit, pokud jsou podmínky splněny.
+  Aktivují se na základě odpovědí dotazníku a komponent (hosting, citlivost).
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Pravidlo (reason_code)</th>
+      <th>Podmínka / Popis</th>
+      <th>Minimální tier</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for rule in rules %}
+    <tr>
+      <td><code>{{ rule.reason_code }}</code></td>
+      <td>{{ rule.popis }}</td>
+      <td>
+        {% set tier = rule.min_tier %}
+        <span class="tier-{{ tier.name | lower }}">{{ rule.min_tier_label }}</span>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<hr>
+
+<h2>Legislativní signály</h2>
+
+<p class="note">
+  Signály GDPR, AI-ACT a DORA se aktivují deterministicky, nikoli LLM. Nejsou to právní
+  závěry, ale podnět k dalšímu review. Každý signál má <strong>reason_code</strong>
+  (záznam proč se objevil) a <strong>detail</strong> (co to znamená).
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Signál</th>
+      <th>Kdy se objeví</th>
+      <th>Co to znamená</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for flag_code in allowed_flags %}
+      {% set info = signal_info[flag_code] %}
+    <tr>
+      <td>
+        <span class="badge-{{ flag_code | lower }}">{{ flag_code }}</span>
+        <br><small>{{ info.titulek }}</small>
+      </td>
+      <td>{{ info.kdy }}</td>
+      <td>{{ info.znamena }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<hr>
+
+<div class="rules-disclaimer">
+  <p>
+    <strong>Důležité:</strong> Klasifikace je interní governance tier určující, jaká úroveň
+    review a kontroly se pro aplikaci zajistí. Není to právní klasifikace GDPR nebo
+    EU AI Act — ty si vyžadují zvláštní právní analýzu, kterou signály jen podněcují.
+  </p>
+</div>
+
+{% endblock %}
