@@ -1,10 +1,10 @@
-# Akceptační checklist (spec kap. 15) — stav k 2026-08-11
+# Akceptační checklist (spec kap. 15) — stav k 2026-08-12
 
-Legenda: ✅ ověřeno · ⏳ PENDING (čeká na funkční Docker Desktop na vývojovém stroji)
+Legenda: ✅ ověřeno
 
 | # | Kritérium | Stav | Jak ověřeno |
 |---|---|---|---|
-| 1 | `docker compose up` na čistém stroji bez ručních kroků | ⏳ | `docker compose config` staticky validní bez `.env`; živý běh čeká na Docker. OIDC část flow ověřena živě proti nativnímu Keycloaku 26.4 (F9). |
+| 1 | `docker compose up` na čistém stroji bez ručních kroků | ✅ | Čistý `git clone` do jiné složky, bez `.env`: `docker compose up -d --build` → obě služby healthy, login obou účtů, seed viditelný, restart idempotentní (seed 0), image bez secrets, `down -v` OK. Při testu nalezen a opraven bug práv na named volume (keycloak-init kontejner). |
 | 2 | Login `user`/`admin`; nepovolené akce → 403 i při ručním POSTu | ✅ | Živý OIDC flow (F9): user → `/admin/ping` 403, admin → 200. Testy: RBAC 403 v test_admin/test_edit/test_registry_routes. |
 | 3 | Založení: dotazník + komponenty → duplicity → klasifikace → potvrzení | ✅ | test_wizard.py happy path + duplicity + historie CREATE/CLASSIFY/DUPLICATE_OVERRIDE. |
 | 4 | `AUTO_DECISION_PERSON` nikdy pod VELKA; admin neuloží pod minimum | ✅ | test_policy.py + test_wizard (400 při POST s MALA) + test_admin (překlasifikace pod minimum → 400). |
@@ -21,9 +21,10 @@ Legenda: ✅ ověřeno · ⏳ PENDING (čeká na funkční Docker Desktop na vý
 | 15 | `/health`; LLM_PROVIDER jen env; guardrail testy zelené | ✅ | 176 testů zelených; /health smoke; přepnutí provider = env (test_anthropic_adapter fail-fast). |
 | 16 | Repo bez secrets; `.env.example` úplný; `prompts/` verzované; README kompletní | ✅ | Sken git log -p (jediný nález = placeholder `sk-ant-...` v README); `.env`/`*.db` netrackované; README checklist F15. |
 
-## Zbývá po zprovoznění Docker Desktopu
+## Docker verifikace — provedena 2026-08-12, vše ✅
 
-1. `docker compose down -v && docker compose up --build` z čistého klonu bez `.env`.
-2. Ověřit: obě služby healthy → login user/admin přes prohlížeč → seed data viditelná → založení aplikace v mock režimu.
-3. Ověřit keycloak healthcheck uvnitř kontejneru (TCP connect varianta — nikdy neběžela v reálném kontejneru).
-4. `docker run --rm <image> env` — žádný secret v image.
+1. ✅ Čistý klon bez `.env` → `docker compose up -d --build` → keycloak-init → keycloak healthy → app healthy.
+2. ✅ Login `user` i `admin` (skriptovaný OIDC flow), seed data viditelná (7 aktivních), admin vidí vyřazený záznam přes filtr.
+3. ✅ Keycloak healthcheck (TCP `/dev/tcp`) funguje v reálném kontejneru. Nalezený bug byl o krok dřív: named volume vzniká `root:root`, Keycloak (uid 1000) nemohl zapsat H2 DB → přidán `keycloak-init` (busybox chown) s `service_completed_successfully`. Bez ručních kroků.
+4. ✅ `docker run --rm --entrypoint env <image>` — jen systémové proměnné, žádný app secret (secrets jdou přes compose environment, `.env` je v `.dockerignore`).
+5. ✅ Restart idempotence: po `docker compose restart app` seed „vloženo 0 aplikací", /health 200.

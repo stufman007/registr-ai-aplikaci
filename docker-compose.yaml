@@ -13,10 +13,26 @@
 # SQLite zamykání souboru, riziko R4).
 
 services:
+  # Named volume `keycloak-data` je při prvním vytvoření prázdný a Docker ho
+  # založí jako root:root (mode 755). Image `keycloak` ale běží jako
+  # uid=1000/gid=0 a skupina root na 755 nemá zápis → H2 (`keycloakdb.mv.db`)
+  # selže na AccessDeniedException ještě před tím, než doběhne healthcheck.
+  # Init kontejner volume zpřístupní zápisem pro gid=0, aby šlo naběhnout
+  # jedním `docker compose up` bez ručního kroku (spec kap. 12).
+  keycloak-init:
+    image: busybox:1.36
+    container_name: registr-keycloak-init
+    command: ["sh", "-c", "chown -R 1000:0 /opt/keycloak/data/h2 && chmod -R 775 /opt/keycloak/data/h2"]
+    volumes:
+      - keycloak-data:/opt/keycloak/data/h2
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.4
     container_name: registr-keycloak
     command: ["start-dev", "--import-realm"]
+    depends_on:
+      keycloak-init:
+        condition: service_completed_successfully
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
