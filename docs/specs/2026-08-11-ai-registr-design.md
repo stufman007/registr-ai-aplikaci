@@ -63,6 +63,9 @@ minimum ho nesníží nikdo (ani admin).
 - CSRF ochrana, bezpečné session cookie, max délky vstupů, optimistic locking
 - Docker compose, `/health`, syntetický seed, README s Master Promptem, složka `prompts/`
 - Zúžené unit testy guardrailů (policy, signály, anonymizér, fallback)
+- Stránka „Pravidla vyhodnocení" (`/pravidla`), číselník oddělení (admin CRUD),
+  per-sloupcové multi-choice filtry a stránkování v registru, tooltips na všech
+  odznacích — dopracováno po uživatelském testování (kap. 12, kap. 14)
 
 **Mimo rozsah (vědomý dluh, popsat v README):**
 
@@ -527,16 +530,44 @@ Dockerfile, docker-compose.yaml, .env.example, README.md, seed.py, requirements.
 
 ## 14. UI obrazovky (server-rendered, česky)
 
+Hlavička (`base.html`) je na každé stránce: vlevo tlačítko **„← Domů"**
+(jen mimo `/`, vede na registr), vpravo odkazy „Pravidla vyhodnocení" a
+(jen `admin`) „Oddělení", jméno uživatele, badge rolí s tooltipem a odhlášení.
+Odznaky (review, tier, stav, role, „VYŘAZENO" s důvodem) mají všude hover
+tooltip s vysvětlením — texty centrálně v `app/ui_texts.py`, ne rozházené po
+šablonách.
+
 1. **Přihlášení** — tlačítko → Keycloak.
-2. **Registr** — tabulka: název, vlastník, tier (barevný štítek), signály (badge +
-   hover), stav, komponenty (zkráceně), badge „vyžaduje review". Filtry: stav, tier.
-   Default jen aktivní; admin má filtr vyřazených.
-3. **Nový záznam** — kontakty + AI komponenty (≥1) + dotazník (9 otázek, tooltips ⓘ)
-   → krok duplicity (jen když jsou kandidáti) → **klasifikační krok**: vedle sebe AI
-   návrh / policy minimum + pravidla / výsledný tier / signály / zdůvodnění → potvrzení.
-4. **Detail** — karta, komponenty, signály s tooltips, historie změn, akce dle práv
-   (editovat / překlasifikovat / vyřadit / obnovit).
-5. **Editace** — změna rizikových vstupů vynutí re-klasifikaci před uložením.
+2. **Registr** — tabulka: název, vlastník, tier (barevný štítek s tooltipem),
+   signály (badge + hover, případně s AI kontextovou větou — 5.4), stav
+   (tooltip), komponenty (zkráceně, provider/model prvního + rozbalitelné
+   „+N" bez JS), badge „vyžaduje review" (tooltip). **Per-sloupcové filtry**:
+   název a vlastník textově (`ilike`), tier/signály/stav/provider komponent
+   jako multi-choice checkbox dropdowny (`<details>`/`<summary>`, bez JS) —
+   OR mezi hodnotami ve sloupci, AND mezi sloupci; „Zrušit filtry" viditelné,
+   jen když je aktivní aspoň jeden. **Stránkování po 20** (`?strana=`,
+   1-based) se zachováním zvolených filtrů v query stringu. Default jen
+   aktivní; admin má navíc přepínač na vyřazené.
+3. **Nový záznam** — kontakty (vč. roletky oddělení a checkboxu „Vlastník je
+   zároveň technický správce", 4.5/12) + AI komponenty (≥1) + dotazník
+   (9 otázek, tooltips ⓘ) → krok duplicity (jen když jsou kandidáti) →
+   **klasifikační krok**: vedle sebe AI návrh / policy minimum + pravidla /
+   výsledný tier / signály / zdůvodnění → potvrzení. Krok duplicit i
+   klasifikační krok mají tlačítko **„← Zpět na formulář"**, které vrací na
+   `/aplikace/nova` s vyplněnými hodnotami předvyplněnými ze session
+   (`WIZARD_SESSION_KEY`) — rozpracovaný vstup se při návratu neztrácí.
+4. **Detail** — karta, komponenty, signály s tooltips (vč. AI kontextové
+   věty), historie změn, akce dle práv (editovat / překlasifikovat /
+   vyřadit / obnovit).
+5. **Editace** — změna rizikových vstupů vynutí re-klasifikaci před uložením;
+   stejný „← Zpět na formulář" vzor jako u založení.
+6. **Pravidla vyhodnocení** (`/pravidla`, přihlášený uživatel) — generovaná
+   přímo z `policy.RULES`, `regulatory.ALLOWED_FLAGS` a
+   `questionnaire.QUESTIONS` (single source of truth, žádný duplikovaný
+   text): tabulka otázek → která pravidla je používají, tabulka eskalačních
+   pravidel s `reason_code` a minimálním tierem, tabulka legislativních
+   signálů s vysvětlením kdy se objeví a co znamenají.
+7. **Admin — Oddělení** (`/admin/oddeleni`) — viz kap. 12.
 
 ## 15. Akceptační kritéria
 

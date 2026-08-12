@@ -30,20 +30,31 @@ pravidla jsou deklarativní tabulky, ne řetězy `if`, a LLM je schovaný za
 jednu abstrakční vrstvu (Gateway), kterou lze vyměnit za firemní AI Gateway
 beze změny zbytku aplikace.
 
+**Co přibylo po uživatelském testování:** stránka „Pravidla vyhodnocení"
+(`/pravidla`, `app/routes/rules_info.py`) vysvětlující netechnickému uživateli,
+proč se ptáme na jednotlivé otázky a jak se z odpovědí odvozuje minimum tieru;
+per-sloupcové filtry a stránkování v registru; číselník oddělení spravovaný
+adminem; tooltips na všech odznacích; a bugfix, po kterém ruční snížení tieru
+uživatelem už nemizí tiše v přepočtu.
+
 ```text
 [prohlížeč] ←HTML/form POST→ [FastAPI monolit] ←OIDC→ [Keycloak kontejner]
                                   ├── auth.py       — OIDC flow, session, require_user/require_admin
                                   ├── security.py   — CSRF, security headers, optimistic locking
-                                  ├── routes/       — registry · classification · edit · admin
+                                  ├── routes/       — registry · classification · edit · admin ·
+                                  │                   rules_info (/pravidla)
                                   ├── services/      policy (eskalační minima)
                                   │                  regulatory (GDPR/AI-ACT/DORA signály)
                                   │                  similarity (lokální předvýběr duplicit)
                                   │                  history (immutable audit)
                                   ├── llm/gateway.py — allowlist → pseudonymizace → adapter →
                                   │                    validace → deanonymizace → audit
-                                  │      ├── mock.py       (default, offline, bez klíče)
-                                  │      └── anthropic.py  (Claude, přes LLM_PROVIDER=anthropic)
-                                  └── SQLite (soubor na named volume)
+                                  │      ├── mock.py            (default, offline, bez klíče)
+                                  │      ├── openai_adapter.py  (LLM_PROVIDER=openai, produkční doporučení)
+                                  │      ├── anthropic.py       (Claude, LLM_PROVIDER=anthropic)
+                                  │      └── gemini_adapter.py  (LLM_PROVIDER=gemini)
+                                  └── SQLite (soubor na named volume; tabulka `departments` —
+                                              číselník oddělení, admin CRUD v /admin/oddeleni)
 ```
 
 ## Jak to spustit
@@ -72,7 +83,11 @@ Po přihlášení uvidíte registr s **8 syntetickými aplikacemi** (7 aktivníc
 1 vyřazená — „Plánovač směn v kavárnách", demonstruje soft delete a nesmazanou
 historii). Jedna aplikace („Nástroj pro hodnocení výkonu zaměstnanců") má
 rozsvícený badge „vyžaduje review". Různé tiery, legislativní signály a AI
-komponenty jsou vidět napříč seznamem — viz `app/seed_data.py`.
+komponenty jsou vidět napříč seznamem — viz `app/seed_data.py`. Seed zakládá i
+výchozí **číselník ~5 oddělení** (IT, Risk, Compliance, Obchod, Finance),
+přiřazený ke kontaktům seed aplikací; admin ho spravuje na `/admin/oddeleni`
+(odkaz „Oddělení" v hlavičce jen pro roli `admin`) — přidání a
+aktivace/deaktivace položky, žádné mazání.
 
 S výchozím `LLM_PROVIDER=mock` funguje **kompletní demo offline**, bez API
 klíče — klasifikace i kontrola duplicit vrací deterministické, věrohodné
@@ -461,7 +476,7 @@ Vyjmenováno explicitně dle spec kap. 2 a `entr_specs.md`:
 
 ## Testy
 
-176 testů (`.venv/Scripts/python -m pytest tests/ -v`), pokrývají:
+399 testů (`.venv/Scripts/python -m pytest tests/ -v`), pokrývají:
 
 - **`test_policy.py`** — každé eskalační pravidlo zvlášť, kombinace pravidel,
   LLM `MALA` + floor `VELKA` → `VELKA`, ruční zvýšení OK, snížení pod minimum
@@ -481,6 +496,15 @@ Vyjmenováno explicitně dle spec kap. 2 a `entr_specs.md`:
   light.
 - **`test_health_csrf.py`** — `/health` bez configu, CSRF 403.
 - **`test_anthropic_adapter.py`** — mapování chyb SDK, fail-fast bez klíče.
+- **`test_departments.py`** — CRUD číselníku oddělení (unikátní název,
+  aktivace/deaktivace místo mazání), roletka ve formuláři skryje neaktivní
+  položky, prázdný číselník nezablokuje založení záznamu.
+- **`test_signal_context.py`** — AI kontextová věta u signálů se přijme jen
+  pro skutečně aktivní zkratku, cizí/vymyšlená zkratka se zahodí, chybějící
+  odpověď LLM nechá `ai_kontext` prázdný (graceful degradation).
+- **`test_rules_info.py`** — stránka `/pravidla` vyžaduje přihlášení a
+  vykresluje data přímo z `policy.RULES` / `regulatory.ALLOWED_FLAGS` /
+  `questionnaire.QUESTIONS`.
 
 Spuštění:
 
