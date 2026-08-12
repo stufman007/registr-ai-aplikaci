@@ -161,20 +161,23 @@ je jen jeho původní zadávací verze.
 
 - **Generování a implementace aplikace**: Claude Fable 5 (`claude-fable-5`)
   přes Claude Code, po fázích (viz [Způsob práce](#způsob-práce-ai-workflow)).
-- **Běh aplikace za provozu** — dva vyměnitelné adaptery za `LlmAdapter`
+- **Běh aplikace za provozu** — čtyři vyměnitelné adaptery za `LlmAdapter`
   abstrakcí (`app/llm/base.py`):
-  - `mock` (**default**, `app/llm/mock.py`) — deterministický, offline, bez
-    API klíče; stejný vstup dá stejný výstup.
-  - `anthropic` (`app/llm/anthropic.py`) — oficiální Anthropic SDK, model
-    `ANTHROPIC_MODEL` (default `claude-sonnet-5`).
+  - `mock` (**default pro demo/dev**, `app/llm/mock.py`) — deterministický,
+    offline, bez API klíče; stejný vstup dá stejný výstup.
+  - `openai` (`app/llm/openai_adapter.py`) — **doporučený produkční provider**,
+    model `gpt-5.4-mini` (sweetspot dle vlastního evalu, viz níže).
+  - `anthropic` (`app/llm/anthropic.py`) — model `ANTHROPIC_MODEL`
+    (`claude-sonnet-5`); prémiová volba pro nejkvalitnější zdůvodnění.
+  - `gemini` (`app/llm/gemini_adapter.py`) — model `GEMINI_MODEL`.
 
-Přepnutí je čistě konfigurační, žádná změna kódu:
+Přepnutí je čistě konfigurační, žádná změna kódu — produkční nastavení:
 
 ```bash
 # .env
-LLM_PROVIDER=anthropic
-ANTHROPIC_API_KEY=sk-ant-...
-ANTHROPIC_MODEL=claude-sonnet-5
+LLM_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-5.4-mini
 ```
 
 S `LLM_PROVIDER=anthropic` a chybějícím klíčem selže **první LLM volání**
@@ -207,12 +210,19 @@ je tak v této úloze **10× dražší než gpt-5.4-mini**. Přesně kvůli tako
 překvapením se cena měří na reálné úloze, ne z ceníku.
 
 **Sweetspot: `gpt-5.4-mini`** — nejpřesnější a zároveň nejlevnější model testu
-(dominuje ve všech tvrdých metrikách). Slabinou je nižší precision u duplicit
-(66,7 % — víc falešných poplachů), což je v tomto UX levná chyba: uživatel
-falešného kandidáta jednou kliknutím odmítne. Pokud by prioritou byla kvalita
-zdůvodnění do governance dokumentace, prémiovou volbou je `claude-sonnet-5`
-(judge 4,66, nejlepší text) za ~3× vyšší cenu. Skutečná cena celého evalu
-(755 API volání vč. poroty): **$2,85**.
+(dominuje ve všech tvrdých metrikách); **je proto nastaven jako produkční
+doporučení** (`OPENAI_MODEL` v `.env.example`, default v `app/config.py`).
+Slabinou je nižší precision u duplicit (66,7 % — víc falešných poplachů), což
+je v tomto UX levná chyba: uživatel falešného kandidáta jednou kliknutím
+odmítne. Pokud by prioritou byla kvalita zdůvodnění do governance dokumentace,
+prémiovou volbou je `claude-sonnet-5` (judge 4,66, nejlepší text) za ~3× vyšší
+cenu. Skutečná cena celého evalu (755 API volání vč. poroty): **$2,85**.
+
+Poznámka: `gemini-3.1-pro-preview` zůstal nevyhodnocen — účet narážel na
+trvalý rate-limit kvóty tohoto preview modelu (2 nezávislé celodatasetové
+pokusy, jednotlivá volání přitom procházela). Opakování po navýšení kvóty jsme
+**vědomě vynechali** — pro volbu produkčního modelu nebylo potřeba: sweetspot
+`gpt-5.4-mini` by výsledek flagship modelu konkurenční rodiny nezměnil.
 
 ## Klasifikace této aplikace samotné a proč
 
@@ -229,7 +239,7 @@ vlastním dotazníkem. Odpovědi za Registr sám o sobě:
 | 7. Citlivost dat | Důvěrná | názvy, popisy a governance rozhodnutí o interních AI nástrojích jsou důvěrné firemní informace |
 | 8. Autonomie | Ne | žádná automatická akce, jen návrh, člověk vždy potvrzuje |
 | 9. Dopad chyby | Provozní | špatná klasifikace se opraví ručně, nezpůsobí finanční ani klientskou škodu |
-| AI komponenta | Anthropic, `EXTERNI_API` | Claude adapter přes veřejné API |
+| AI komponenta | OpenAI (`gpt-5.4-mini`), `EXTERNI_API` | produkční adapter přes veřejné API (dle evalu) |
 
 Vyhodnoceno **skutečným kódem** `app.services.policy.compute_minimum` a
 `app.services.regulatory.compute_flags` — reprodukovatelné skriptem
@@ -254,7 +264,7 @@ zásadním dopadem) ani `CLIENT_PERSONAL_DATA`/`CRITICAL_PROCESS`/
 `HIGHLY_SENSITIVE_DATA`/`AUTONOMOUS_ACTION` (zpracovává údaje zaměstnanců, ne
 klientů; je jen důležitá, ne kritická; data jsou důvěrná, ne vysoce citlivá;
 nejedná autonomně). Aktivuje se ale **`EXTERNAL_PROVIDER_SENSITIVE_DATA`** —
-používá externího AI providera (Anthropic, `EXTERNI_API`) nad důvěrnými daty
+používá externího AI providera (OpenAI, `EXTERNI_API`) nad důvěrnými daty
 — což samo o sobě zvedá minimum na **STŘEDNÍ**. Zároveň se deterministicky
 rozsvítí signál **GDPR** (zpracovává osobní údaje zaměstnanců — kontakty
 vlastníků aplikací). Výsledná klasifikace registru samotného je tedy

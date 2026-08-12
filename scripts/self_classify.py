@@ -42,7 +42,7 @@ answers = DotaznikOdpovedi(
     dopad=DopadChyby.PROVOZNI,
 )
 components = [
-    KomponentaInfo(provider=Provider.ANTHROPIC, hosting_type=HostingType.EXTERNI_API)
+    KomponentaInfo(provider=Provider.OPENAI, hosting_type=HostingType.EXTERNI_API)
 ]
 
 minimum = compute_minimum(answers, components)

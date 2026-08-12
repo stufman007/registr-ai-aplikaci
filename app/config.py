@@ -18,7 +18,8 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     # ID ověřena při ostrém běhu evalu 2026-08 přes `models.list` daného SDK
     # (viz scripts/eval/README.md). Při dalším upgradu providera ověřit znovu.
-    openai_model: str = "gpt-5.4"
+    # Produkční doporučení dle evalu cena/výkon (docs/eval/2026-08-12_eval-report.md).
+    openai_model: str = "gpt-5.4-mini"
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-3.1-pro-preview"
     llm_timeout_seconds: int = 10
