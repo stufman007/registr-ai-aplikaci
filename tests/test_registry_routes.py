@@ -216,6 +216,157 @@ def test_unknown_stav_filter_value_is_ignored() -> None:
     assert pilot.nazev in response.text
 
 
+# --- Per-sloupcové filtry seznamu registru (nazev/vlastnik/signal/provider) --
+
+
+def test_nazev_filter_matches_contains_case_insensitive() -> None:
+    match = _seed(nazev="Sumarizátor smluv")
+    other = _seed(nazev="Klasifikátor dokumentů")
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"nazev": "sumariz"})
+    assert response.status_code == 200
+    assert match.nazev in response.text
+    assert other.nazev not in response.text
+
+
+def test_nazev_filter_percent_literal_does_not_match_all() -> None:
+    """LIKE escape (spec požadavku): `%` v hodnotě filtru se bere doslova,
+    ne jako SQL wildcard — jinak by `nazev=%` matchovalo úplně vše."""
+    alfa = _seed(nazev="Alfa nástroj")
+    beta = _seed(nazev="Beta nástroj")
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"nazev": "%"})
+    assert response.status_code == 200
+    assert alfa.nazev not in response.text
+    assert beta.nazev not in response.text
+
+
+def test_vlastnik_filter_matches_email() -> None:
+    match = _seed(
+        nazev="Aplikace Jany",
+        vlastnik_jmeno="Jana Nová",
+        vlastnik_email="jana.nova@example.com",
+    )
+    other = _seed(
+        nazev="Aplikace Petra",
+        vlastnik_jmeno="Petr Svoboda",
+        vlastnik_email="petr.svoboda@example.com",
+    )
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"vlastnik": "jana.nova@example.com"})
+    assert response.status_code == 200
+    assert match.nazev in response.text
+    assert other.nazev not in response.text
+
+
+def test_signal_filter_gdpr_matches_only_flagged_records() -> None:
+    with_gdpr = _seed(
+        nazev="S GDPR signálem",
+        klasifikace_priznaky=[
+            {
+                "zkratka": "GDPR",
+                "titulek": "GDPR — údaje klientů",
+                "detail": "Aplikace zpracovává osobní údaje klientů.",
+                "reason_code": "PERSONAL_DATA_PROCESSING",
+                "source": "deterministic_rule",
+            }
+        ],
+    )
+    without_gdpr = _seed(nazev="Bez signálu")
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"signal": "GDPR"})
+    assert response.status_code == 200
+    assert with_gdpr.nazev in response.text
+    assert without_gdpr.nazev not in response.text
+
+
+def test_provider_filter_matches_component_provider() -> None:
+    anthropic_app = _seed(
+        nazev="Anthropic aplikace",
+        components=[
+            AiComponent(
+                provider=Provider.ANTHROPIC,
+                model_name="claude-3",
+                purpose="Sumarizace",
+                hosting_type=HostingType.EXTERNI_API,
+            )
+        ],
+    )
+    openai_app = _seed(
+        nazev="OpenAI aplikace",
+        components=[
+            AiComponent(
+                provider=Provider.OPENAI,
+                model_name="gpt-4o",
+                purpose="Sumarizace",
+                hosting_type=HostingType.EXTERNI_API,
+            )
+        ],
+    )
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"provider": "ANTHROPIC"})
+    assert response.status_code == 200
+    assert anthropic_app.nazev in response.text
+    assert openai_app.nazev not in response.text
+
+
+def test_combined_filters_apply_as_and() -> None:
+    match = _seed(nazev="Shoda", stav=Stav.PILOT, klasifikace=Tier.STREDNI)
+    wrong_stav = _seed(nazev="Shoda jiný stav", stav=Stav.PROVOZ, klasifikace=Tier.STREDNI)
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get(
+        "/", params={"nazev": "Shoda", "stav": "PILOT", "tier": "STREDNI"}
+    )
+    assert response.status_code == 200
+    assert match.nazev in response.text
+    assert wrong_stav.nazev not in response.text
+
+
+def test_unknown_signal_and_provider_filter_values_are_ignored() -> None:
+    aplikace = _seed(nazev="Bez filtru")
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/", params={"signal": "NESMYSL", "provider": "NESMYSL"})
+    assert response.status_code == 200
+    assert aplikace.nazev in response.text
+
+
+def test_clear_filters_link_only_shown_when_filter_active() -> None:
+    _seed(nazev="Test aplikace")
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get("/")
+    assert "Zrušit filtry" not in response.text
+
+    response = client.get("/", params={"nazev": "Test"})
+    assert "Zrušit filtry" in response.text
+
+
+def test_pagination_preserves_all_active_filters() -> None:
+    _seed_many(
+        25,
+        stav=Stav.PILOT,
+        vlastnik_jmeno="Jana Nová",
+        vlastnik_email="jana.nova@example.com",
+    )
+    _login(username="user", email="user@example.com", roles=["user"])
+
+    response = client.get(
+        "/", params={"stav": "PILOT", "vlastnik": "jana", "nazev": "Aplikace"}
+    )
+    assert response.status_code == 200
+    assert "stav=PILOT" in response.text
+    assert "vlastnik=jana" in response.text
+    assert "nazev=Aplikace" in response.text
+    assert "strana=2" in response.text
+
+
 # --- GET /aplikace/{id} -------------------------------------------------------
 
 

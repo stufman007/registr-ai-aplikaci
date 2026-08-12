@@ -584,3 +584,92 @@ def test_classification_fallback_keeps_wizard_state(monkeypatch: pytest.MonkeyPa
 
     assert _save(Tier.MALA.name).status_code == 303
     assert len(_applications()) == 1
+
+
+# --- návrat na formulář (tlačítko „Zpět na formulář" / „Domů") --------------
+
+
+def test_new_application_form_prefills_from_wizard_session_state() -> None:
+    """GET /aplikace/nova s rozdělaným wizardem v session vrátí formulář
+    předvyplněný dřív zadanými hodnotami — ne prázdný. To je podmínka pro
+    tlačítko „Zpět na formulář" v krocích duplicity/klasifikace: uživatel se
+    nesmí vrátit do prázdného formuláře."""
+    _login()
+    assert _submit_form().status_code == 303
+
+    response = client.get("/aplikace/nova")
+    assert response.status_code == 200
+    assert 'value="Sumarizátor smluv"' in response.text
+    assert 'value="Jana Nová"' in response.text
+    assert 'value="jana.nova@example.com"' in response.text
+    assert 'value="claude-sonnet-5"' in response.text
+    assert "Shrnuje nahrané smlouvy do bodů pro právní tým." in response.text
+
+
+def test_duplicates_step_has_back_to_form_link(monkeypatch: pytest.MonkeyPatch) -> None:
+    _login()
+    existing = _seed_application(
+        "Sumarizátor smluv", "Shrnuje nahrané smlouvy do bodů pro právní tým."
+    )
+    monkeypatch.setattr(
+        classification,
+        "_find_duplicates",
+        _fake_duplicates(
+            [DuplicateMatch(record_id=existing.id, nazev=existing.nazev, duvod="Shoda.")]
+        ),
+    )
+    assert _submit_form().status_code == 303
+
+    step = client.get("/aplikace/nova/duplicity")
+    assert step.status_code == 200
+    assert 'href="/aplikace/nova"' in step.text
+    assert "Zpět na formulář" in step.text
+
+
+def test_classification_step_has_back_to_form_link() -> None:
+    _login()
+    assert _submit_form().status_code == 303
+
+    step = client.get("/aplikace/nova/klasifikace")
+    assert step.status_code == 200
+    assert 'href="/aplikace/nova"' in step.text
+    assert "Zpět na formulář" in step.text
+
+
+def test_back_to_form_edit_and_resubmit_creates_single_record() -> None:
+    """Uživatel dojde na krok klasifikace, vrátí se tlačítkem „Zpět na
+    formulář" (prostý GET, žádné nové volání LLM), upraví název a znovu
+    odešle — vznikne JEDEN záznam s novým názvem, ne dva a ne se starým."""
+    _login()
+    assert _submit_form().status_code == 303
+    assert client.get("/aplikace/nova/klasifikace").status_code == 200
+
+    formular = client.get("/aplikace/nova")
+    assert formular.status_code == 200
+    assert 'value="Sumarizátor smluv"' in formular.text
+
+    upraveno = _submit_form(nazev="Sumarizátor smluv v2")
+    assert upraveno.status_code == 303
+    assert upraveno.headers["location"] == "/aplikace/nova/klasifikace"
+
+    assert client.get("/aplikace/nova/klasifikace").status_code == 200
+    saved = _save(Tier.MALA.name)
+    assert saved.status_code == 303
+
+    applications = _applications()
+    assert len(applications) == 1
+    assert applications[0].nazev == "Sumarizátor smluv v2"
+
+
+# --- hlavička: odkaz „Domů" ---------------------------------------------------
+
+
+def test_header_home_link_present_on_subpage_not_on_home() -> None:
+    _login()
+    subpage = client.get("/aplikace/nova")
+    assert subpage.status_code == 200
+    assert '<a href="/" class="button button--back"' in subpage.text
+
+    home = client.get("/")
+    assert home.status_code == 200
+    assert 'class="button button--back"' not in home.text

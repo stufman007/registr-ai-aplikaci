@@ -2,13 +2,12 @@
 //
 // Dynamické části UI:
 // - přidávání a odebírání řádků AI komponent ve formuláři nového záznamu
-//   (Fáze 11);
-// - tlačítko „Zpět" v hlavičce (history.back()) — jediná navigační výjimka
-//   z pravidla „bez JS", protože prohlížeč historii jinak nenabízí.
-// Tooltips u legislativních badge, governance tieru, stavu, role i voleb
-// dotazníku řeší čisté CSS (`.tooltip` + `:hover` v app/static/style.css).
-// Rozbalitelné „+N" u komponent a signálů řeší nativní <details>/<summary>,
-// taky bez JS.
+//   (Fáze 11).
+// Tlačítko „Domů" v hlavičce je prostý odkaz na `/` (base.html) — žádný JS
+// handler netřeba. Tooltips u legislativních badge, governance tieru, stavu,
+// role i voleb dotazníku řeší čisté CSS (`.tooltip` + `:hover` v
+// app/static/style.css). Rozbalitelné „+N" u komponent a signálů řeší
+// nativní <details>/<summary>, taky bez JS.
 //
 // Formulář funguje i bez JS: server vždy vyrenderuje alespoň jeden řádek a
 // validaci počtu komponent (min. 1, max. 5) dělá backend znovu.
@@ -67,16 +66,6 @@
     sync();
   }
 
-  function initBackButton() {
-    var button = document.querySelector("[data-back-button]");
-    if (!button) {
-      return;
-    }
-    button.addEventListener("click", function () {
-      history.back();
-    });
-  }
-
   // Checkbox „Vlastník je zároveň technický správce" (app_form.html) skryje
   // sekci technického správce. Skutečné převzetí hodnot vlastníka do polí
   // správce dělá server při uložení (nespoléhat na JS) — tohle je jen UI.
@@ -111,10 +100,29 @@
     sync();
   }
 
+  // Per-sloupcové filtry seznamu registru (registry_list.html). Selecty se
+  // odešlou automaticky při změně — textové filtry (název, vlastník) ne,
+  // ty čekají na Enter (nativní chování `<input>` v `<form>`) nebo tlačítko
+  // „Filtrovat". Formulář je obyčejný GET `<form>` — funguje i bez JS, tohle
+  // je čistě UX vylepšení. Žádný inline handler (CSP): delegace přes
+  // `data-registry-filters` / `data-autosubmit`.
+  function initRegistryFilters() {
+    var form = document.querySelector("[data-registry-filters]");
+    if (!form) {
+      return;
+    }
+
+    form.querySelectorAll("[data-autosubmit]").forEach(function (field) {
+      field.addEventListener("change", function () {
+        form.submit();
+      });
+    });
+  }
+
   function init() {
     initComponentRows();
-    initBackButton();
     initSpravceToggle();
+    initRegistryFilters();
   }
 
   if (document.readyState === "loading") {

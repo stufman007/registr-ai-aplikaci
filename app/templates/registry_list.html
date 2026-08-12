@@ -5,31 +5,8 @@
 {% block content %}
 <h1>Registr aplikací</h1>
 
-<p><a class="button" href="/aplikace/nova">Založit novou aplikaci</a></p>
-
-<form method="get" action="/" class="filters">
-  <label>
-    Stav
-    <select name="stav">
-      <option value="">Vše</option>
-      {% for s in all_stav %}
-      <option value="{{ s.name }}" {% if filter_stav == s %}selected{% endif %}>{{ s.label() }}</option>
-      {% endfor %}
-    </select>
-  </label>
-  <label>
-    Tier
-    <select name="tier">
-      <option value="">Vše</option>
-      {% for t in all_tier %}
-      <option value="{{ t.name }}" {% if filter_tier == t %}selected{% endif %}>{{ t.label() }}</option>
-      {% endfor %}
-    </select>
-  </label>
-  {% if show_deleted %}
-  <input type="hidden" name="zobrazit" value="vyrazene">
-  {% endif %}
-  <button type="submit">Filtrovat</button>
+<p>
+  <a class="button" href="/aplikace/nova">Založit novou aplikaci</a>
   {% if user.is_admin %}
     {% if show_deleted %}
     <a href="/">Zobrazit aktivní</a>
@@ -37,25 +14,87 @@
     <a href="/?zobrazit=vyrazene">Zobrazit vyřazené</a>
     {% endif %}
   {% endif %}
-</form>
+</p>
 
 {% if show_deleted %}
 <p class="note">Zobrazeny vyřazené záznamy (jen pro admina).</p>
 {% endif %}
 
-{% if applications %}
-<table>
-  <thead>
-    <tr>
-      <th>Název</th>
-      <th>Vlastník</th>
-      <th>Tier</th>
-      <th>Signály</th>
-      <th>Stav</th>
-      <th>Komponenty</th>
-    </tr>
-  </thead>
-  <tbody>
+{% if filters_active %}
+<p><a href="{{ '/?zobrazit=vyrazene' if show_deleted else '/' }}" class="filters-clear">Zrušit filtry</a></p>
+{% endif %}
+
+<form method="get" action="/" class="registry-filter-form" data-registry-filters>
+  {% if show_deleted %}
+  <input type="hidden" name="zobrazit" value="vyrazene">
+  {% endif %}
+  <table>
+    <thead>
+      <tr>
+        <th>Název</th>
+        <th>Vlastník</th>
+        <th>Tier</th>
+        <th>Signály</th>
+        <th>Stav</th>
+        <th>Komponenty</th>
+      </tr>
+      <tr class="filters-row">
+        <th>
+          <input
+            type="search"
+            name="nazev"
+            value="{{ filter_nazev }}"
+            placeholder="Hledat název…"
+            maxlength="100"
+            aria-label="Filtrovat podle názvu"
+          >
+        </th>
+        <th>
+          <input
+            type="search"
+            name="vlastnik"
+            value="{{ filter_vlastnik }}"
+            placeholder="Jméno nebo e-mail…"
+            maxlength="100"
+            aria-label="Filtrovat podle vlastníka"
+          >
+        </th>
+        <th>
+          <select name="tier" aria-label="Filtrovat podle tieru" data-autosubmit>
+            <option value="">Vše</option>
+            {% for t in all_tier %}
+            <option value="{{ t.name }}" {% if filter_tier == t %}selected{% endif %}>{{ t.label() }}</option>
+            {% endfor %}
+          </select>
+        </th>
+        <th>
+          <select name="signal" aria-label="Filtrovat podle signálu" data-autosubmit>
+            <option value="">Vše</option>
+            {% for sig in all_signal %}
+            <option value="{{ sig }}" {% if filter_signal == sig %}selected{% endif %}>{{ sig }}</option>
+            {% endfor %}
+          </select>
+        </th>
+        <th>
+          <select name="stav" aria-label="Filtrovat podle stavu" data-autosubmit>
+            <option value="">Vše</option>
+            {% for s in all_stav %}
+            <option value="{{ s.name }}" {% if filter_stav == s %}selected{% endif %}>{{ s.label() }}</option>
+            {% endfor %}
+          </select>
+        </th>
+        <th>
+          <select name="provider" aria-label="Filtrovat podle providera komponent" data-autosubmit>
+            <option value="">Vše</option>
+            {% for p in all_provider %}
+            <option value="{{ p.name }}" {% if filter_provider == p %}selected{% endif %}>{{ p.label() }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit">Filtrovat</button>
+        </th>
+      </tr>
+    </thead>
+    <tbody>
     {% for polozka in applications %}
     <tr>
       <td>
@@ -87,10 +126,20 @@
         {% include "_components.html" %}
       </td>
     </tr>
+    {% else %}
+    <tr>
+      <td colspan="6" class="note">
+        {% if filters_active %}Žádné záznamy neodpovídají zvoleným filtrům.
+        {% elif show_deleted %}Žádné vyřazené záznamy.
+        {% else %}Registr zatím neobsahuje žádné aktivní aplikace.
+        {% endif %}
+      </td>
+    </tr>
     {% endfor %}
   </tbody>
 </table>
 
+{% if applications %}
 <nav class="pagination" aria-label="Stránkování registru">
   {% if prev_query %}
   <a href="/?{{ prev_query }}">← Předchozí</a>
@@ -104,9 +153,6 @@
   <span class="pagination__disabled">Další →</span>
   {% endif %}
 </nav>
-{% else %}
-<p class="note">
-  {% if show_deleted %}Žádné vyřazené záznamy.{% else %}Registr zatím neobsahuje žádné aktivní aplikace.{% endif %}
-</p>
 {% endif %}
+</form>
 {% endblock %}
