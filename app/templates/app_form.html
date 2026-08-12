@@ -65,10 +65,19 @@
     <fieldset class="contact">
       <legend>{{ popisek }}</legend>
 
+      {# Technický správce skrytý checkboxem „Vlastník je zároveň technický
+         správce" nesmí mít `required` pole — jinak by (na prohlížečích, které
+         skryté-předkem povinné pole korektně nevyřadí z constraint validation)
+         tiše blokoval odeslání formuláře. Server hodnotu skrytosti zná
+         (`values.spravce_je_vlastnik`), takže `required` rovnou vynechá; JS
+         (`app.js`, `initSpravceToggle`) totéž udržuje živě při přepínání
+         checkboxu bez reloadu. Formulář tak funguje správně i bez JS. #}
+      {% set spravce_required = role != "spravce" or not values.spravce_je_vlastnik %}
+
       <label class="field">
         Jméno a příjmení
         <input type="text" name="{{ role }}_jmeno" maxlength="200"
-               value="{{ values[role ~ '_jmeno'] }}" required>
+               value="{{ values[role ~ '_jmeno'] }}" {% if spravce_required %}required{% endif %}>
         {% if errors[role ~ '_jmeno'] %}
         <span class="field-error">{{ errors[role ~ '_jmeno'] }}</span>
         {% endif %}
@@ -77,7 +86,7 @@
       <label class="field">
         E-mail
         <input type="email" name="{{ role }}_email" maxlength="200"
-               value="{{ values[role ~ '_email'] }}" required>
+               value="{{ values[role ~ '_email'] }}" {% if spravce_required %}required{% endif %}>
         {% if errors[role ~ '_email'] %}
         <span class="field-error">{{ errors[role ~ '_email'] }}</span>
         {% endif %}

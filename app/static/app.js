@@ -80,6 +80,14 @@
   // Checkbox „Vlastník je zároveň technický správce" (app_form.html) skryje
   // sekci technického správce. Skutečné převzetí hodnot vlastníka do polí
   // správce dělá server při uložení (nespoléhat na JS) — tohle je jen UI.
+  //
+  // Skryté `required` pole NESMÍ blokovat odeslání formuláře. Spoléhat na
+  // to, že prohlížeč automaticky vyřadí z constraint validation input, který
+  // má skrytého předka (`hidden` atribut), není napříč prohlížeči 100%
+  // spolehlivé (starší/WebKit varianty na tohle mají historicky nekonzistentní
+  // chování) — proto se `required` na jméně a e-mailu správce explicitně
+  // sundává při skrytí sekce a vrací při jejím zobrazení. Validace na
+  // serveru (`_validate_contacts`) zůstává vždy autoritativní zdroj pravdy.
   function initSpravceToggle() {
     var checkbox = document.querySelector("[data-spravce-toggle]");
     var section = document.getElementById("spravce-section");
@@ -87,8 +95,16 @@
       return;
     }
 
+    var requiredFields = section.querySelectorAll(
+      'input[type="text"], input[type="email"]'
+    );
+
     function sync() {
-      section.hidden = checkbox.checked;
+      var hidden = checkbox.checked;
+      section.hidden = hidden;
+      requiredFields.forEach(function (field) {
+        field.required = !hidden;
+      });
     }
 
     checkbox.addEventListener("change", sync);

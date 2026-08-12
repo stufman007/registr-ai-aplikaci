@@ -1,0 +1,57 @@
+- generic [active] [ref=f7e1]:
+  - banner [ref=f7e2]:
+    - generic [ref=f7e3]:
+      - button "Zpět na předchozí stránku" [ref=f7e4]: ← Zpět
+      - link "Registr interních AI aplikací" [ref=f7e6] [cursor=pointer]:
+        - /url: /
+    - generic [ref=f7e7]:
+      - link "Pravidla vyhodnocení" [ref=f7e8] [cursor=pointer]:
+        - /url: /pravidla
+      - link "Oddělení" [ref=f7e9] [cursor=pointer]:
+        - /url: /admin/oddeleni
+      - text: admin
+      - generic [ref=f7e10]: admin
+      - generic [ref=f7e11]: user
+      - link "Odhlásit" [ref=f7e12] [cursor=pointer]:
+        - /url: /logout
+  - main [ref=f7e13]:
+    - heading "Klasifikace aplikace „Test aplikace bug repro“" [level=1] [ref=f7e14]
+    - paragraph [ref=f7e15]: Krok 3 ze 3 — AI navrhuje, deterministická pravidla určují povinné minimum, rozhoduje člověk. Výsledek nikdy nemůže klesnout pod minimum.
+    - generic [ref=f7e16]:
+      - generic [ref=f7e17]:
+        - generic [ref=f7e18]:
+          - heading "Návrh AI" [level=2] [ref=f7e19]
+          - paragraph [ref=f7e20]:
+            - generic [ref=f7e21]: Malá
+          - paragraph [ref=f7e22]: "Aplikace je popsána jako „pomocný“ nástroj s „počet uživatelů: DO_10 (do 10)“, bez osobních údajů („Osobní údaje: NE“), bez rozhodování o lidech („Rozhodování o lidech: NE“) a s „dopad chyby: ZANEDBATELNY“. Zároveň je uvedeno, že jde o „Testovací popis účelu aplikace pro reprodukci bugu“, což odpovídá nízkému provoznímu dopadu a užití pod lidskou kontrolou. Použití externího API od „ANTHROPIC“ samo o sobě nemění fakt, že podle dodaných odpovědí jde o malý pomocný nástroj."
+        - generic [ref=f7e23]:
+          - heading "Povinné minimum" [level=2] [ref=f7e24]
+          - paragraph [ref=f7e25]:
+            - generic [ref=f7e26]: Malá
+          - paragraph [ref=f7e27]: Žádné eskalační pravidlo se neaktivovalo.
+        - generic [ref=f7e28]:
+          - heading "Výsledný tier" [level=2] [ref=f7e29]
+          - paragraph [ref=f7e30]:
+            - text: "Navrhováno:"
+            - strong [ref=f7e31]: Malá
+            - text: . Snížit pod minimum nelze.
+          - paragraph [ref=f7e32]: Jako admin můžete snížit až k povinnému minimu, i pod návrh AI.
+          - generic [ref=f7e33]:
+            - text: Potvrzený tier
+            - combobox "Potvrzený tier" [ref=f7e34]:
+              - option "Malá" [selected]
+              - option "Střední"
+              - option "Velká"
+          - generic [ref=f7e35]:
+            - text: Poznámka (povinná při změně proti návrhu)
+            - textbox "Poznámka (povinná při změně proti návrhu)" [ref=f7e36]
+        - generic [ref=f7e37]:
+          - heading "Signály" [level=2] [ref=f7e38]
+          - paragraph [ref=f7e39]: —
+          - paragraph [ref=f7e40]: Signály jsou podnět ke governance review, nikoli právní závěr.
+      - generic [ref=f7e41]:
+        - button "Uložit záznam" [ref=f7e42]
+        - link "Zpět na formulář" [ref=f7e43] [cursor=pointer]:
+          - /url: /aplikace/nova
+  - contentinfo [ref=f7e44]:
+    - paragraph [ref=f7e45]: Klasifikace je interní governance tier, nikoli právní klasifikace. Legislativní signály (GDPR / AI-ACT / DORA) jsou podnět k dalšímu review, nikoli právní závěr.

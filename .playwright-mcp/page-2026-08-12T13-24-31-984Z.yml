@@ -1,0 +1,217 @@
+- generic [ref=f17e1]:
+  - banner [ref=f17e2]:
+    - generic [ref=f17e3]:
+      - button "Zpět na předchozí stránku" [ref=f17e4]: ← Zpět
+      - link "Registr interních AI aplikací" [ref=f17e6] [cursor=pointer]:
+        - /url: /
+    - generic [ref=f17e7]:
+      - link "Pravidla vyhodnocení" [ref=f17e8] [cursor=pointer]:
+        - /url: /pravidla
+      - link "Oddělení" [ref=f17e9] [cursor=pointer]:
+        - /url: /admin/oddeleni
+      - text: admin
+      - generic [ref=f17e10]: admin
+      - generic [ref=f17e11]: user
+      - link "Odhlásit" [ref=f17e12] [cursor=pointer]:
+        - /url: /logout
+  - main [ref=f17e13]:
+    - heading "Nová aplikace v registru" [level=1] [ref=f17e14]
+    - paragraph [ref=f17e15]: Krok 1 ze 3 — kontakty, AI komponenty a klasifikační dotazník. Nic se neukládá, dokud klasifikaci nepotvrdíte v posledním kroku.
+    - generic [ref=f17e16]:
+      - generic [ref=f17e17]:
+        - heading "Základní údaje" [level=2] [ref=f17e18]
+        - generic [ref=f17e19]:
+          - text: Název aplikace
+          - textbox "Název aplikace" [ref=f17e20]: Bug repro post-fix
+        - generic [ref=f17e21]:
+          - text: Stav
+          - combobox "Stav" [ref=f17e22]:
+            - option "Vývoj" [selected]
+            - option "Pilot"
+            - option "Provoz"
+            - option "Utlumeno"
+      - generic [ref=f17e23]:
+        - heading "Kontakty" [level=2] [ref=f17e24]
+        - paragraph [ref=f17e25]: Vlastník odpovídá za obsah záznamu, technický správce za provoz.
+        - group "Vlastník" [ref=f17e26]:
+          - generic [ref=f17e28]:
+            - text: Jméno a příjmení
+            - textbox "Jméno a příjmení" [ref=f17e29]: Jan Novak
+          - generic [ref=f17e30]:
+            - text: E-mail
+            - textbox "E-mail" [ref=f17e31]: a@b
+          - generic [ref=f17e32]:
+            - text: Oddělení
+            - combobox "Oddělení" [ref=f17e33]:
+              - option "— vyberte —" [selected]
+              - option "Compliance"
+              - option "Finance"
+              - option "IT"
+              - option "Obchod"
+              - option "Risk"
+          - generic [ref=f17e34]:
+            - checkbox "Vlastník je zároveň technický správce" [ref=f17e35]
+            - text: Vlastník je zároveň technický správce
+        - group "Zástupce" [ref=f17e36]:
+          - generic [ref=f17e38]:
+            - text: Jméno a příjmení
+            - textbox "Jméno a příjmení" [ref=f17e39]: Petr Svoboda
+          - generic [ref=f17e40]:
+            - text: E-mail
+            - textbox "E-mail" [ref=f17e41]: petr.svoboda@example.com
+          - generic [ref=f17e42]:
+            - text: Oddělení
+            - combobox "Oddělení" [ref=f17e43]:
+              - option "— vyberte —" [selected]
+              - option "Compliance"
+              - option "Finance"
+              - option "IT"
+              - option "Obchod"
+              - option "Risk"
+        - group "Technický správce" [ref=f17e158]:
+          - generic [ref=f17e160]:
+            - text: Jméno a příjmení
+            - textbox "Jméno a příjmení" [ref=f17e161]: Eva Krejci
+          - generic [ref=f17e162]:
+            - text: E-mail
+            - textbox "E-mail" [ref=f17e163]: eva.krejci@example.com
+          - generic [ref=f17e164]:
+            - text: Oddělení
+            - combobox "Oddělení" [ref=f17e165]:
+              - option "— vyberte —" [selected]
+              - option "Compliance"
+              - option "Finance"
+              - option "IT"
+              - option "Obchod"
+              - option "Risk"
+      - generic [ref=f17e44]:
+        - heading "AI komponenty" [level=2] [ref=f17e45]
+        - paragraph [ref=f17e46]: Alespoň jedna, nejvýš 5. Z typu hostingu se odvozuje signál „externí AI provider“ pro povinné minimum klasifikace.
+        - generic [ref=f17e48]:
+          - generic [ref=f17e49]:
+            - text: Poskytovatel
+            - combobox "Poskytovatel" [ref=f17e50]:
+              - option "— vyberte —"
+              - option "Anthropic" [selected]
+              - option "OpenAI"
+              - option "Azure"
+              - option "Interní"
+              - option "Jiný"
+          - generic [ref=f17e51]:
+            - text: Model
+            - textbox "Model" [active] [ref=f17e52]:
+              - /placeholder: např. claude-sonnet-5
+              - text: gpt-5
+          - generic [ref=f17e53]:
+            - text: Účel použití
+            - textbox "Účel použití" [ref=f17e54]:
+              - /placeholder: např. sumarizace smluv
+              - text: sumarizace
+          - generic [ref=f17e55]:
+            - text: Hosting
+            - combobox "Hosting" [ref=f17e56]:
+              - option "— vyberte —"
+              - option "Externí API" [selected]
+              - option "Firemní cloud"
+              - option "On-prem"
+              - option "Neznámé"
+          - button "Odebrat" [disabled] [ref=f17e57]
+        - button "Přidat komponentu" [ref=f17e58]
+      - generic [ref=f17e59]:
+        - heading "Klasifikační dotazník" [level=2] [ref=f17e60]
+        - paragraph [ref=f17e61]: Odpovědi jsou podkladem pro návrh AI i pro deterministická povinná minima. U voleb s ⓘ najdete vysvětlení po najetí myší.
+        - generic [ref=f17e62]:
+          - text: 1. K čemu aplikace slouží a jaký proces podporuje?
+          - textbox "1. K čemu aplikace slouží a jaký proces podporuje?" [ref=f17e63]: Testovaci popis pro reprodukci po opravu.
+        - group "2. Kolik lidí ji používá / bude používat?" [ref=f17e64]:
+          - generic [ref=f17e66]:
+            - radio "do 10" [ref=f17e67]
+            - text: do 10
+          - generic [ref=f17e68]:
+            - radio "10–50" [ref=f17e69]
+            - text: 10–50
+          - generic [ref=f17e70]:
+            - radio "přes 50" [ref=f17e71]
+            - text: přes 50
+        - group "3. Jak kritický proces podporuje?" [ref=f17e72]:
+          - generic [ref=f17e74]:
+            - radio "Pomocný ⓘ" [ref=f17e75]
+            - generic [ref=f17e76]: Pomocný ⓘ
+          - generic [ref=f17e77]:
+            - radio "Důležitý ⓘ" [ref=f17e78]
+            - generic [ref=f17e79]: Důležitý ⓘ
+          - generic [ref=f17e80]:
+            - radio "Kritický ⓘ" [ref=f17e81]
+            - generic [ref=f17e82]: Kritický ⓘ
+        - group "4. Zpracovává osobní údaje?" [ref=f17e83]:
+          - generic [ref=f17e85]:
+            - radio "Ne ⓘ" [ref=f17e86]
+            - generic [ref=f17e87]: Ne ⓘ
+          - generic [ref=f17e88]:
+            - radio "Zaměstnanců ⓘ" [ref=f17e89]
+            - generic [ref=f17e90]: Zaměstnanců ⓘ
+          - generic [ref=f17e91]:
+            - radio "Klientů ⓘ" [ref=f17e92]
+            - generic [ref=f17e93]: Klientů ⓘ
+        - group "5. Rozhoduje nebo doporučuje o lidech?" [ref=f17e94]:
+          - generic [ref=f17e96]:
+            - radio "Ne ⓘ" [ref=f17e97]
+            - generic [ref=f17e98]: Ne ⓘ
+          - generic [ref=f17e99]:
+            - radio "Doporučuje, člověk rozhoduje ⓘ" [ref=f17e100]
+            - generic [ref=f17e101]: Doporučuje, člověk rozhoduje ⓘ
+          - generic [ref=f17e102]:
+            - radio "Rozhoduje automatizovaně ⓘ" [ref=f17e103]
+            - generic [ref=f17e104]: Rozhoduje automatizovaně ⓘ
+        - group "6. Je výstup viditelný mimo firmu?" [ref=f17e105]:
+          - generic [ref=f17e107]:
+            - radio "Ne" [ref=f17e108]
+            - text: Ne
+          - generic [ref=f17e109]:
+            - radio "Nepřímo (vstupuje do klientských výstupů)" [ref=f17e110]
+            - text: Nepřímo (vstupuje do klientských výstupů)
+          - generic [ref=f17e111]:
+            - radio "Ano, přímo" [ref=f17e112]
+            - text: Ano, přímo
+        - group "7. Jak citlivá data zpracovává?" [ref=f17e113]:
+          - generic [ref=f17e115]:
+            - radio "Veřejná ⓘ" [ref=f17e116]
+            - generic [ref=f17e117]: Veřejná ⓘ
+          - generic [ref=f17e118]:
+            - radio "Interní ⓘ" [ref=f17e119]
+            - generic [ref=f17e120]: Interní ⓘ
+          - generic [ref=f17e121]:
+            - radio "Důvěrná ⓘ" [ref=f17e122]
+            - generic [ref=f17e123]: Důvěrná ⓘ
+          - generic [ref=f17e124]:
+            - radio "Vysoce citlivá ⓘ" [ref=f17e125]
+            - generic [ref=f17e126]: Vysoce citlivá ⓘ
+        - group "8. Může výstup AI vyvolat akci bez kontroly člověkem?" [ref=f17e127]:
+          - generic [ref=f17e129]:
+            - radio "Ne ⓘ" [ref=f17e130]
+            - generic [ref=f17e131]: Ne ⓘ
+          - generic [ref=f17e132]:
+            - radio "Člověk schvaluje ⓘ" [ref=f17e133]
+            - generic [ref=f17e134]: Člověk schvaluje ⓘ
+          - generic [ref=f17e135]:
+            - radio "Ano, automaticky ⓘ" [ref=f17e136]
+            - generic [ref=f17e137]: Ano, automaticky ⓘ
+        - group "9. Jaký je potenciální dopad chybného výstupu AI?" [ref=f17e138]:
+          - generic [ref=f17e140]:
+            - radio "Zanedbatelný ⓘ" [ref=f17e141]
+            - generic [ref=f17e142]: Zanedbatelný ⓘ
+          - generic [ref=f17e143]:
+            - radio "Provozní ⓘ" [ref=f17e144]
+            - generic [ref=f17e145]: Provozní ⓘ
+          - generic [ref=f17e146]:
+            - radio "Finanční nebo klientský ⓘ" [ref=f17e147]
+            - generic [ref=f17e148]: Finanční nebo klientský ⓘ
+          - generic [ref=f17e149]:
+            - radio "Zásadní ⓘ" [ref=f17e150]
+            - generic [ref=f17e151]: Zásadní ⓘ
+      - generic [ref=f17e152]:
+        - button "Pokračovat" [ref=f17e153]
+        - link "Zrušit" [ref=f17e154] [cursor=pointer]:
+          - /url: /
+  - contentinfo [ref=f17e155]:
+    - paragraph [ref=f17e156]: Klasifikace je interní governance tier, nikoli právní klasifikace. Legislativní signály (GDPR / AI-ACT / DORA) jsou podnět k dalšímu review, nikoli právní závěr.

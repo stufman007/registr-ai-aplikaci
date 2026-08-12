@@ -1,0 +1,147 @@
+- generic [active] [ref=f11e1]:
+  - banner [ref=f11e2]:
+    - generic [ref=f11e3]:
+      - button "Zpět na předchozí stránku" [ref=f11e4]: ← Zpět
+      - link "Registr interních AI aplikací" [ref=f11e6] [cursor=pointer]:
+        - /url: /
+    - generic [ref=f11e7]:
+      - link "Pravidla vyhodnocení" [ref=f11e8] [cursor=pointer]:
+        - /url: /pravidla
+      - link "Oddělení" [ref=f11e9] [cursor=pointer]:
+        - /url: /admin/oddeleni
+      - text: admin
+      - generic [ref=f11e10]: admin
+      - generic [ref=f11e11]: user
+      - link "Odhlásit" [ref=f11e12] [cursor=pointer]:
+        - /url: /logout
+  - main [ref=f11e13]:
+    - paragraph [ref=f11e14]: Aplikace „Test aplikace bug repro“ byla upravena.
+    - heading "Test aplikace bug repro" [level=1] [ref=f11e15]
+    - generic [ref=f11e16]:
+      - link "Upravit" [ref=f11e17] [cursor=pointer]:
+        - /url: /aplikace/4efbd7dc14d14ba98c4e23affd54ef4d/upravit
+      - link "Překlasifikovat" [ref=f11e18] [cursor=pointer]:
+        - /url: /aplikace/4efbd7dc14d14ba98c4e23affd54ef4d/preklasifikovat
+      - group [ref=f11e19]:
+        - generic "Vyřadit" [ref=f11e20] [cursor=pointer]
+    - generic [ref=f11e21]:
+      - heading "Karta aplikace" [level=2] [ref=f11e22]
+      - table [ref=f11e23]:
+        - rowgroup [ref=f11e24]:
+          - row [ref=f11e25]:
+            - rowheader "Popis" [ref=f11e26]
+            - cell "Testovací popis účelu aplikace pro reprodukci bugu." [ref=f11e27]
+          - row [ref=f11e28]:
+            - rowheader "Vlastník" [ref=f11e29]
+            - cell "Jan Novak (jan.novak@example.com), Obchod" [ref=f11e30]
+          - row [ref=f11e31]:
+            - rowheader "Zástupce" [ref=f11e32]
+            - cell "Petr Svoboda (petr.svoboda@example.com), IT" [ref=f11e33]
+          - row [ref=f11e34]:
+            - rowheader "Technický správce" [ref=f11e35]
+            - cell "Jan Novak (jan.novak@example.com), Obchod" [ref=f11e36]
+          - row [ref=f11e37]:
+            - rowheader "Stav" [ref=f11e38]
+            - cell "Vývoj" [ref=f11e39]
+          - row [ref=f11e41]:
+            - rowheader "Založil" [ref=f11e42]
+            - cell "admin (12.08.2026 13:15)" [ref=f11e43]
+          - row [ref=f11e44]:
+            - rowheader "Naposledy upravil" [ref=f11e45]
+            - cell "admin (12.08.2026 13:17)" [ref=f11e46]
+          - row [ref=f11e47]:
+            - rowheader "Verze (optimistic locking)" [ref=f11e48]
+            - cell "2" [ref=f11e49]
+    - generic [ref=f11e50]:
+      - heading "AI komponenty" [level=2] [ref=f11e51]
+      - table [ref=f11e52]:
+        - rowgroup [ref=f11e53]:
+          - row [ref=f11e54]:
+            - columnheader "Provider" [ref=f11e55]
+            - columnheader "Model" [ref=f11e56]
+            - columnheader "Účel" [ref=f11e57]
+            - columnheader "Hosting" [ref=f11e58]
+        - rowgroup [ref=f11e59]:
+          - row [ref=f11e60]:
+            - cell "Anthropic" [ref=f11e61]
+            - cell "gpt-5" [ref=f11e62]
+            - cell "sumarizace" [ref=f11e63]
+            - cell "Externí API" [ref=f11e64]
+    - generic [ref=f11e65]:
+      - heading "Klasifikace" [level=2] [ref=f11e66]
+      - table [ref=f11e67]:
+        - rowgroup [ref=f11e68]:
+          - row [ref=f11e69]:
+            - rowheader "Návrh AI" [ref=f11e70]
+            - cell "Malá" [ref=f11e71]
+          - row [ref=f11e73]:
+            - rowheader "Policy minimum" [ref=f11e74]
+            - cell "Malá" [ref=f11e75]
+          - row [ref=f11e77]:
+            - rowheader "Výsledný tier" [ref=f11e78]
+            - cell "Malá" [ref=f11e79]
+          - row [ref=f11e81]:
+            - rowheader "Zdůvodnění" [ref=f11e82]
+            - 'cell "Aplikace je popsána jako „pomocný“ nástroj s „počet uživatelů: DO_10 (do 10)“, bez osobních údajů („Osobní údaje: NE“), bez rozhodování o lidech („Rozhodování o lidech: NE“) a s „dopad chyby: ZANEDBATELNY“. Zároveň je uvedeno, že jde o „Testovací popis účelu aplikace pro reprodukci bugu“, což odpovídá nízkému provoznímu dopadu a užití pod lidskou kontrolou. Použití externího API od „ANTHROPIC“ samo o sobě nemění fakt, že podle dodaných odpovědí jde o malý pomocný nástroj." [ref=f11e83]'
+          - row [ref=f11e84]:
+            - rowheader "Potvrdil" [ref=f11e85]
+            - cell "admin" [ref=f11e86]
+    - generic [ref=f11e87]:
+      - heading "Signály" [level=2] [ref=f11e88]
+      - text: —
+      - paragraph [ref=f11e89]: Signály jsou podnět ke governance review, nikoli právní klasifikace.
+    - generic [ref=f11e90]:
+      - heading "Historie změn" [level=2] [ref=f11e91]
+      - table [ref=f11e92]:
+        - rowgroup [ref=f11e93]:
+          - row [ref=f11e94]:
+            - columnheader "Kdy" [ref=f11e95]
+            - columnheader "Kdo" [ref=f11e96]
+            - columnheader "Akce" [ref=f11e97]
+            - columnheader "Pole" [ref=f11e98]
+            - columnheader "Stará hodnota" [ref=f11e99]
+            - columnheader "Nová hodnota" [ref=f11e100]
+            - columnheader "Důvod" [ref=f11e101]
+        - rowgroup [ref=f11e102]:
+          - row [ref=f11e103]:
+            - cell "12.08.2026 13:17" [ref=f11e104]
+            - cell "admin" [ref=f11e105]
+            - cell "Upraveno" [ref=f11e106]
+            - cell "spravce_oddeleni" [ref=f11e107]
+            - cell "IT" [ref=f11e108]
+            - cell "Obchod" [ref=f11e109]
+            - cell "—" [ref=f11e110]
+          - row [ref=f11e111]:
+            - cell "12.08.2026 13:17" [ref=f11e112]
+            - cell "admin" [ref=f11e113]
+            - cell "Upraveno" [ref=f11e114]
+            - cell "spravce_email" [ref=f11e115]
+            - cell "eva.krejci@example.com" [ref=f11e116]
+            - cell "jan.novak@example.com" [ref=f11e117]
+            - cell "—" [ref=f11e118]
+          - row [ref=f11e119]:
+            - cell "12.08.2026 13:17" [ref=f11e120]
+            - cell "admin" [ref=f11e121]
+            - cell "Upraveno" [ref=f11e122]
+            - cell "spravce_jmeno" [ref=f11e123]
+            - cell "Eva Krejci" [ref=f11e124]
+            - cell "Jan Novak" [ref=f11e125]
+            - cell "—" [ref=f11e126]
+          - row [ref=f11e127]:
+            - cell "12.08.2026 13:15" [ref=f11e128]
+            - cell "admin" [ref=f11e129]
+            - cell "Klasifikováno" [ref=f11e130]
+            - cell "klasifikace" [ref=f11e131]
+            - cell "—" [ref=f11e132]
+            - cell "MALA" [ref=f11e133]
+            - cell "—" [ref=f11e134]
+          - row [ref=f11e135]:
+            - cell "12.08.2026 13:15" [ref=f11e136]
+            - cell "admin" [ref=f11e137]
+            - cell "Vytvořeno" [ref=f11e138]
+            - cell "—" [ref=f11e139]
+            - cell "—" [ref=f11e140]
+            - cell "—" [ref=f11e141]
+            - cell "—" [ref=f11e142]
+  - contentinfo [ref=f11e143]:
+    - paragraph [ref=f11e144]: Klasifikace je interní governance tier, nikoli právní klasifikace. Legislativní signály (GDPR / AI-ACT / DORA) jsou podnět k dalšímu review, nikoli právní závěr.

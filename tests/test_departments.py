@@ -363,6 +363,59 @@ def test_unchecked_checkbox_requires_manager_fields() -> None:
     assert "Technický správce" in response.text
 
 
+def _input_tag(html: str, name: str) -> str:
+    match = re.search(rf'<input[^>]*name="{name}"[^>]*>', html)
+    assert match is not None, f"Pole {name} nenalezeno ve formuláři"
+    return match.group(0)
+
+
+def test_default_checked_checkbox_omits_required_on_hidden_manager_fields() -> None:
+    """Regrese: skryté `required` pole nesmí blokovat odeslání formuláře.
+    Spoléhat jen na to, že prohlížeč vyřadí required pole se skrytým předkem
+    z constraint validation, není napříč prohlížeči spolehlivé — server proto
+    `required` na skrytých polích správce rovnou nevykresluje (viz
+    `app_form.html`, `spravce_required`). Výchozí stav nového formuláře má
+    checkbox zaškrtnutý (sekce správce skrytá)."""
+    _login("jana.nova")
+
+    form = client.get("/aplikace/nova")
+    assert form.status_code == 200
+    assert "required" not in _input_tag(form.text, "spravce_jmeno")
+    assert "required" not in _input_tag(form.text, "spravce_email")
+    # Vlastník a zástupce jsou vždy viditelní a povinní, bez ohledu na checkbox.
+    assert "required" in _input_tag(form.text, "vlastnik_jmeno")
+    assert "required" in _input_tag(form.text, "zastupce_email")
+
+
+def test_error_rerender_keeps_required_in_sync_with_submitted_checkbox() -> None:
+    """Po chybném submitu (400 — jiné pole je špatně) se skrytost sekce
+    správce i `required` na jejích polích musí řídit PRÁVĚ ODESLANÝM stavem
+    checkboxu, ne serverovým defaultem. Jinak by po opravě chyby a druhém
+    kliknutí na „Pokračovat“ formulář dál obsahoval skryté required pole se
+    starým (nesprávným) stavem a odeslání by v prohlížečích, které tohle
+    nehlídají korektně, tiše neproběhlo."""
+    _login("jana.nova")
+
+    # Checkbox zaškrtnutý (spravce skrytý) + chyba jinde -> 400, sekce
+    # správce musí zůstat skrytá A required-free navzdory prázdným polím.
+    response = _submit_wizard(
+        spravce_je_vlastnik="1",
+        spravce_jmeno="",
+        spravce_email="",
+        vlastnik_email="not-an-email",
+    )
+    assert response.status_code == 400
+    assert "required" not in _input_tag(response.text, "spravce_jmeno")
+    assert "required" not in _input_tag(response.text, "spravce_email")
+
+    # Checkbox odškrtnutý (spravce viditelný) + prázdná pole správce -> 400,
+    # required se musí vrátit, aby uživatel dostal okamžitou zpětnou vazbu.
+    response = _submit_wizard(spravce_jmeno="", spravce_email="")
+    assert response.status_code == 400
+    assert "required" in _input_tag(response.text, "spravce_jmeno")
+    assert "required" in _input_tag(response.text, "spravce_email")
+
+
 def test_empty_department_registry_wizard_still_works() -> None:
     """Prázdný číselník: pole oddělení je jen volitelné, formulář nesmí
     zablokovat založení záznamu (graceful degradation, spec kap. 4.5)."""
