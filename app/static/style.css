@@ -186,7 +186,7 @@ th {
   font-weight: normal;
   white-space: normal;
   width: max-content;
-  max-width: 260px;
+  max-width: 320px;
   transition: opacity 0.1s ease-in-out;
   pointer-events: none;
 }
@@ -195,6 +195,14 @@ th {
 .tooltip:focus .tooltip__text {
   visibility: visible;
   opacity: 1;
+}
+
+/* AI kontextová věta u legislativního signálu (spec kap. 5.4) — vizuálně
+   odlišená od deterministického detailu nad ní (kurzíva + slabší barva). */
+.tooltip__text .ai-kontext {
+  display: inline-block;
+  margin-top: 0.3rem;
+  color: #d9d9d9;
 }
 
 /* Tooltip u krajů tabulky — vystředěná varianta by v prvním/posledním

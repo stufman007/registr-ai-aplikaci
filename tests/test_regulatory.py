@@ -30,7 +30,7 @@ from app.schemas import (
     RozhodovaniOLidech,
     ViditelnostVystupu,
 )
-from app.services.regulatory import ALLOWED_FLAGS, Flag, compute_flags
+from app.services.regulatory import ALLOWED_FLAGS, Flag, compute_flags, flags_to_dicts
 
 
 def nevinne_odpovedi(**overrides: object) -> DotaznikOdpovedi:
@@ -206,6 +206,50 @@ def test_kombinace_vsech_tri_signalu() -> None:
 
     zkratky = {f.zkratka for f in flags}
     assert zkratky == {"GDPR", "AI-ACT", "DORA"}
+
+
+# --- flags_to_dicts: AI kontextová věta (spec kap. 5.4, doplněk) ---
+
+
+def test_flags_to_dicts_bez_signal_context_nema_ai_kontext() -> None:
+    """Bez `signal_context` (fallback / starší volání) se `ai_kontext` do
+    dictu vůbec nepřidá — kostra signálu stačí (graceful degradation)."""
+    answers = nevinne_odpovedi(osobni_udaje=OsobniUdaje.KLIENTU)
+    flags = compute_flags(answers, interni_komponenta())
+
+    dicts = flags_to_dicts(flags)
+
+    assert len(dicts) == 1
+    assert "ai_kontext" not in dicts[0]
+    # Deterministická kostra beze změny.
+    assert dicts[0]["zkratka"] == "GDPR"
+    assert dicts[0]["detail"] == flags[0].detail
+
+
+def test_flags_to_dicts_priradi_ai_kontext_podle_zkratky() -> None:
+    answers = nevinne_odpovedi(
+        osobni_udaje=OsobniUdaje.KLIENTU, rozhodovani=RozhodovaniOLidech.DOPORUCUJE
+    )
+    flags = compute_flags(answers, interni_komponenta())
+
+    dicts = flags_to_dicts(flags, {"GDPR": "Věta specifická pro tento záznam."})
+
+    podle_zkratky = {d["zkratka"]: d for d in dicts}
+    assert podle_zkratky["GDPR"]["ai_kontext"] == "Věta specifická pro tento záznam."
+    # AI-ACT ve `signal_context` chybí → klíč se nepřidá.
+    assert "ai_kontext" not in podle_zkratky["AI-ACT"]
+
+
+def test_flags_to_dicts_ignoruje_neaktivni_zkratku_v_signal_context() -> None:
+    """`signal_context` obsahující zkratku, která k žádnému aktivnímu signálu
+    nepatří (např. DORA se nikdy neaktivoval), se prostě nepoužije."""
+    answers = nevinne_odpovedi(osobni_udaje=OsobniUdaje.KLIENTU)
+    flags = compute_flags(answers, interni_komponenta())
+
+    dicts = flags_to_dicts(flags, {"DORA": "Nesouvisející věta."})
+
+    assert dicts[0]["zkratka"] == "GDPR"
+    assert "ai_kontext" not in dicts[0]
 
 
 # --- Nevinné odpovědi ---

@@ -19,7 +19,7 @@ import logging
 import re
 import time
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -44,12 +44,17 @@ from app.llm.gemini_adapter import GeminiAdapter
 from app.llm.mock import MockAdapter
 from app.llm.openai_adapter import OpenAiAdapter
 from app.schemas import DotaznikOdpovedi, KomponentaInfo, LlmPurpose, Tier
+from app.services.regulatory import Flag
 from app.services.similarity import FALLBACK_THRESHOLD, MAX_CANDIDATES, Candidate
 
 logger = logging.getLogger(__name__)
 
 #: Maximální délka jednoho volného textu v promptu (spec kap. 7.3).
 MAX_FIELD_LENGTH = 4000
+
+#: Maximální délka jedné AI kontextové věty u legislativního signálu (spec kap. 5.4).
+#: Kostra signálu je deterministická; tohle je jen strop na doplňkový text od LLM.
+MAX_SIGNAL_CONTEXT_LENGTH = 300
 
 #: Kolik kandidátů duplicit smí maximálně odejít do modelu (spec kap. 6).
 MAX_CANDIDATES_IN_PROMPT = MAX_CANDIDATES
@@ -82,6 +87,9 @@ class ClassifyOutcome:
     llm_tier: Tier | None
     zduvodneni: str
     fallback_used: bool
+    #: AI kontextová věta na aktivní legislativní signál (spec kap. 5.4),
+    #: `{zkratka: věta}`. Výchozí `{}` — fallback i starší volání bez věty.
+    signal_context: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -107,6 +115,10 @@ class ClassificationSuggestion(BaseModel):
 
     klasifikace: Tier
     zduvodneni: str = Field(min_length=1)
+    #: AI kontextová věta na aktivní legislativní signál, `{zkratka: věta}`.
+    #: Volitelné pole (spec kap. 5.4) — model ho nemusí vrátit vůbec, gateway
+    #: navíc po validaci ořeže na povolené zkratky a délku (`_sanitize_signal_context`).
+    signal_context: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("klasifikace", mode="before")
     @classmethod
@@ -170,22 +182,31 @@ def classify(
     session: Session,
     answers: DotaznikOdpovedi,
     components: list[KomponentaInfo],
+    active_flags: list[Flag] | None = None,
     known_contacts: Iterable[tuple[str, str]] | None = None,
     adapter: LlmAdapter | None = None,
 ) -> ClassifyOutcome:
-    """Navrhne governance tier a české zdůvodnění.
+    """Navrhne governance tier, české zdůvodnění a AI kontextovou větu k signálům.
 
-    Allowlist účelu `classify`: odpovědi dotazníku + AI komponenty. Kontakty se
-    do payloadu vůbec nesestavují (spec kap. 7.1) — `known_contacts` slouží jen
-    anonymizéru k rozpoznání jmen ve volném textu.
+    Allowlist účelu `classify`: odpovědi dotazníku + AI komponenty + aktivní
+    legislativní signály (zkratka, reason_code, deterministický detail — spec
+    kap. 5.4). Kontakty se do payloadu vůbec nesestavují (spec kap. 7.1) —
+    `known_contacts` slouží jen anonymizéru k rozpoznání jmen ve volném textu.
+
+    `active_flags` musí volající spočítat deterministicky **před** tímto
+    voláním (`regulatory.compute_flags`) — existence a kostra signálu se tím
+    nemění, LLM jen doplní kontextovou větu k signálům, které mu byly předány.
     """
+    active_flags = active_flags or []
     adapter = adapter or get_adapter()
     anonymizer = Anonymizer(known_contacts)
     prompt_version, template = _load_prompt("classification.md")
 
-    prompt = template.replace(
-        "{{ODPOVEDI}}", _render_answers(answers, anonymizer)
-    ).replace("{{KOMPONENTY}}", _render_components(components))
+    prompt = (
+        template.replace("{{ODPOVEDI}}", _render_answers(answers, anonymizer))
+        .replace("{{KOMPONENTY}}", _render_components(components))
+        .replace("{{SIGNALY}}", _render_active_flags(active_flags))
+    )
 
     result, error_code, latence_ms = _call_adapter(adapter, prompt, LlmPurpose.CLASSIFY)
 
@@ -212,13 +233,18 @@ def classify(
             llm_tier=Tier.MALA,
             zduvodneni=FALLBACK_CLASSIFY_MESSAGE,
             fallback_used=True,
+            signal_context={},
         )
 
     # Deanonymizace až po validaci — do mapy se sahá jen na ověřený tvar.
+    signal_context = _sanitize_signal_context(
+        suggestion.signal_context, active_flags, anonymizer
+    )
     return ClassifyOutcome(
         llm_tier=suggestion.klasifikace,
         zduvodneni=anonymizer.restore(suggestion.zduvodneni),
         fallback_used=False,
+        signal_context=signal_context,
     )
 
 
@@ -347,6 +373,19 @@ def _render_components(components: list[KomponentaInfo]) -> str:
     )
 
 
+def _render_active_flags(active_flags: list[Flag]) -> str:
+    """Aktivní legislativní signály pro `{{SIGNALY}}` — zkratka, reason_code
+    a deterministický detail (spec kap. 5.4). Signály samotné jsou hotové
+    (deterministic_rule), model k nim jen doplňuje kontextovou větu."""
+    if not active_flags:
+        return "- (žádný legislativní signál není aktivní)"
+    return "\n".join(
+        f"- zkratka: {flag.zkratka} | reason_code: {flag.reason_code} | "
+        f"detail: {flag.detail}"
+        for flag in active_flags
+    )
+
+
 def _render_new_application(nazev: str, popis: str, anonymizer: Anonymizer) -> str:
     return (
         f"- název: {_prepare_free_text(nazev, anonymizer)}\n"
@@ -427,6 +466,31 @@ def _validate[ModelT: BaseModel](
         # Do logu nikdy neteče obsah odpovědi — jen účel a fakt selhání.
         logger.warning("LLM odpověď neprošla schema validací (ucel=%s)", purpose)
         return None
+
+
+def _sanitize_signal_context(
+    raw: dict[str, str], active_flags: list[Flag], anonymizer: Anonymizer
+) -> dict[str, str]:
+    """Ořez odpovědi LLM na `signal_context` (spec kap. 5.4).
+
+    Přijme jen zkratky, které byly skutečně poslané jako aktivní signál
+    (cizí/vymyšlená zkratka se tiše zahodí) — existence signálu zůstává
+    stoprocentně deterministická, tohle jen filtruje doplňkový text k ní.
+    Věta se ořízne na `MAX_SIGNAL_CONTEXT_LENGTH` a deanonymizuje až po
+    filtru, stejně jako `zduvodneni`.
+    """
+    allowed = {flag.zkratka for flag in active_flags}
+    result: dict[str, str] = {}
+    for zkratka, veta in raw.items():
+        if zkratka not in allowed:
+            continue
+        veta = veta.strip()
+        if not veta:
+            continue
+        if len(veta) > MAX_SIGNAL_CONTEXT_LENGTH:
+            veta = veta[:MAX_SIGNAL_CONTEXT_LENGTH] + "…"
+        result[zkratka] = anonymizer.restore(veta)
+    return result
 
 
 def _extract_json(text: str) -> dict[str, Any] | None:

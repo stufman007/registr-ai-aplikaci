@@ -235,6 +235,56 @@ def test_detail_shows_history_and_classification_for_owner() -> None:
     assert "Upravit" in response.text
 
 
+def test_detail_shows_ai_kontext_when_present() -> None:
+    """`_flags.html` (spec kap. 5.4): tooltip zobrazí AI kontextovou větu
+    vizuálně odlišenou (`<em class="ai-kontext">`) hned za deterministickým
+    detailem, když ji `klasifikace_priznaky` obsahuje."""
+    active = _seed(
+        klasifikace_priznaky=[
+            {
+                "zkratka": "GDPR",
+                "titulek": "GDPR — údaje klientů",
+                "detail": "Aplikace zpracovává osobní údaje klientů.",
+                "reason_code": "PERSONAL_DATA_PROCESSING",
+                "source": "deterministic_rule",
+                "ai_kontext": "Tato aplikace ukládá e-maily klientů z kontaktního formuláře.",
+            }
+        ]
+    )
+    _login(username="jana.nova", email="jana.nova@example.com", roles=["user"])
+
+    response = client.get(f"/aplikace/{active.id}")
+    assert response.status_code == 200
+    assert (
+        "AI kontext: Tato aplikace ukládá e-maily klientů z kontaktního formuláře."
+        in response.text
+    )
+    # Deterministický detail je pořád vidět vedle AI věty.
+    assert "Aplikace zpracovává osobní údaje klientů." in response.text
+
+
+def test_detail_flags_without_ai_kontext_render_without_extra_text() -> None:
+    """Starý záznam / fallback bez `ai_kontext` — kostra signálu stačí,
+    tooltip nezobrazí žádný AI text navíc (graceful degradation)."""
+    active = _seed(
+        klasifikace_priznaky=[
+            {
+                "zkratka": "GDPR",
+                "titulek": "GDPR — údaje klientů",
+                "detail": "Aplikace zpracovává osobní údaje klientů.",
+                "reason_code": "PERSONAL_DATA_PROCESSING",
+                "source": "deterministic_rule",
+            }
+        ]
+    )
+    _login(username="jana.nova", email="jana.nova@example.com", roles=["user"])
+
+    response = client.get(f"/aplikace/{active.id}")
+    assert response.status_code == 200
+    assert "Aplikace zpracovává osobní údaje klientů." in response.text
+    assert "AI kontext:" not in response.text
+
+
 def test_detail_retired_hidden_for_regular_user_but_visible_for_admin() -> None:
     retired = _seed(
         nazev="Starý nástroj",

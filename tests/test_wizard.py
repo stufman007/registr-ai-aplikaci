@@ -108,6 +108,18 @@ def _fake_classify(tier: Tier, fallback: bool = False) -> Any:
     return _call
 
 
+def _fake_classify_with_context(tier: Tier, signal_context: dict[str, str]) -> Any:
+    def _call(*_args: Any, **_kwargs: Any) -> ClassifyOutcome:
+        return ClassifyOutcome(
+            llm_tier=tier,
+            zduvodneni="Testovací zdůvodnění návrhu AI.",
+            fallback_used=False,
+            signal_context=signal_context,
+        )
+
+    return _call
+
+
 def _fake_duplicates(matches: list[DuplicateMatch], fallback: bool = False) -> Any:
     def _call(*_args: Any, **_kwargs: Any) -> DuplicatesOutcome:
         return DuplicatesOutcome(matches=matches, fallback_used=fallback)
@@ -326,6 +338,36 @@ def test_flags_are_stored_for_personal_data_answers() -> None:
     zkratky = {flag["zkratka"] for flag in record.klasifikace_priznaky}
     assert zkratky == {"GDPR", "AI-ACT"}
     assert record.klasifikace_minimum is Tier.STREDNI
+    # Fallback fixture `_fake_classify` nevrací `signal_context` — kostra
+    # signálu stačí, žádný z nich nemá `ai_kontext` (graceful degradation).
+    assert all("ai_kontext" not in flag for flag in record.klasifikace_priznaky)
+
+
+def test_ai_kontext_se_uklada_do_klasifikace_priznaky(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AI kontextová věta (spec kap. 5.4) se propíše z klasifikačního kroku
+    (session) až do uloženého `klasifikace_priznaky.ai_kontext` — bez ovlivnění
+    existence/kostry signálu, kterou pořád počítá `regulatory.compute_flags`."""
+    monkeypatch.setattr(
+        classification,
+        "_classify",
+        _fake_classify_with_context(
+            Tier.STREDNI, {"GDPR": "Tento záznam ukládá e-maily klientů z kontaktního formuláře."}
+        ),
+    )
+    _login()
+    _submit_form(osobni_udaje="KLIENTU")
+    client.get("/aplikace/nova/klasifikace")
+
+    assert _save(Tier.STREDNI.name).status_code == 303
+
+    record = _applications()[0]
+    podle_zkratky = {flag["zkratka"]: flag for flag in record.klasifikace_priznaky}
+    assert podle_zkratky["GDPR"]["ai_kontext"] == (
+        "Tento záznam ukládá e-maily klientů z kontaktního formuláře."
+    )
+    # Kostra signálu je beze změny — stejná jako u signálu bez AI kontextu.
+    assert podle_zkratky["GDPR"]["zkratka"] == "GDPR"
+    assert podle_zkratky["GDPR"]["reason_code"] == "PERSONAL_DATA_PROCESSING"
 
 
 # --- policy floor ------------------------------------------------------------

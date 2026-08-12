@@ -56,7 +56,7 @@ from app.services.policy import (
     compute_minimum,
     effective_tier,
 )
-from app.services.regulatory import Flag, compute_flags
+from app.services.regulatory import compute_flags, flags_to_dicts
 from app.services.similarity import top_candidates
 from app.templating import templates
 
@@ -499,7 +499,7 @@ def _render_classification(
     user: SessionUser,
     state: dict[str, Any],
     minimum: MinimumResult,
-    flags: list[Flag],
+    flags: list[dict[str, Any]],
     navrh: Tier,
     selected: Tier,
     poznamka: str = "",
@@ -512,7 +512,11 @@ def _render_classification(
     """Vykreslí `classify_step.html`. Sdílí ho i re-klasifikace při editaci
     (Fáze 12, `app.routes.edit`) — `action_url`/`back_url` odlišují jen cíl
     formuláře, `state` má v obou tocích stejný tvar (`values`/`klasifikace`/
-    `duplicate_reason`)."""
+    `duplicate_reason`).
+
+    `flags` jsou už serializované dicty (`regulatory.flags_to_dicts`), ne
+    `Flag` objekty — obsahují i volitelný `ai_kontext` (spec kap. 5.4), který
+    `_flags.html` vykreslí vedle deterministického detailu."""
     klasifikace = state.get("klasifikace") or {}
     return templates.TemplateResponse(
         request,
@@ -568,10 +572,16 @@ def classification_step(
     answers = _answers_from(values)
     components = _components_from(values)
 
-    outcome = _classify(db, answers, components, known_contacts=_known_contacts(db))
+    # Signály se počítají PŘED voláním LLM — jdou do promptu jako allowlist
+    # kontext pro `signal_context` (spec kap. 5.4). Existence signálu je tím
+    # nedotčená, LLM k ní jen smí doplnit kontextovou větu.
     minimum = compute_minimum(answers, components)
     flags = compute_flags(answers, components)
+    outcome = _classify(
+        db, answers, components, active_flags=flags, known_contacts=_known_contacts(db)
+    )
     navrh = effective_tier(outcome.llm_tier, minimum)
+    flags_data = flags_to_dicts(flags, outcome.signal_context)
 
     state["klasifikace"] = {
         "llm_tier": outcome.llm_tier.name if outcome.llm_tier else None,
@@ -579,12 +589,13 @@ def classification_step(
         "fallback_used": outcome.fallback_used,
         "minimum_tier": minimum.tier.name,
         "navrh_tier": navrh.name,
-        "flags": [flag.to_dict() for flag in flags],
+        "flags": flags_data,
+        "signal_context": outcome.signal_context,
     }
     request.session[WIZARD_SESSION_KEY] = state
 
     return _render_classification(
-        request, user, state, minimum, flags, navrh, selected=navrh
+        request, user, state, minimum, flags_data, navrh, selected=navrh
     )
 
 
@@ -610,6 +621,10 @@ async def save_new_application(
 
     minimum = compute_minimum(answers, components)
     flags = compute_flags(answers, components)
+    # AI kontextová věta se znovu nevolá — použije se ta z klasifikačního
+    # kroku (session), stejně jako `llm_tier`/`zduvodneni` (spec kap. 5.4).
+    signal_context = (state.get("klasifikace") or {}).get("signal_context") or {}
+    flags_data = flags_to_dicts(flags, signal_context)
     llm_tier = _stored_llm_tier(state)
     navrh = effective_tier(llm_tier, minimum)
 
@@ -620,7 +635,7 @@ async def save_new_application(
 
     if manual is None:
         return _render_classification(
-            request, user, state, minimum, flags, navrh, navrh, poznamka,
+            request, user, state, minimum, flags_data, navrh, navrh, poznamka,
             error="Vyberte výsledný governance tier.",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
@@ -635,19 +650,19 @@ async def save_new_application(
         )
     except ManualBelowSuggestion as exc:
         return _render_classification(
-            request, user, state, minimum, flags, navrh, manual, poznamka,
+            request, user, state, minimum, flags_data, navrh, manual, poznamka,
             error=str(exc),
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
     if vysledny != navrh and not poznamka:
         return _render_classification(
-            request, user, state, minimum, flags, navrh, manual, poznamka,
+            request, user, state, minimum, flags_data, navrh, manual, poznamka,
             error="Při změně proti navrhovanému tieru je poznámka povinná.",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    application = _build_application(state, user, minimum, flags, vysledny, poznamka)
+    application = _build_application(state, user, minimum, flags_data, vysledny, poznamka)
     db.add(application)
     db.flush()
 
@@ -663,7 +678,7 @@ def _build_application(
     state: dict[str, Any],
     user: SessionUser,
     minimum: MinimumResult,
-    flags: list[Flag],
+    flags_data: list[dict[str, Any]],
     vysledny: Tier,
     poznamka: str,
 ) -> Application:
@@ -683,7 +698,7 @@ def _build_application(
         klasifikace_minimum=minimum.tier,
         klasifikace=vysledny,
         klasifikace_zduvodneni=_compose_zduvodneni(state, minimum, llm_tier),
-        klasifikace_priznaky=[flag.to_dict() for flag in flags],
+        klasifikace_priznaky=flags_data,
         klasifikace_potvrdil=user.username,
         klasifikace_poznamka=poznamka or None,
         dotaznik_odpovedi=dict(values["odpovedi"]),

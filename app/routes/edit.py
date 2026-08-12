@@ -54,7 +54,7 @@ from app.schemas import AuditAction, HostingType, Provider, Stav, Tier
 from app.security import VersionConflict, verify_csrf
 from app.services import history
 from app.services.policy import ManualBelowSuggestion, compute_minimum, effective_tier
-from app.services.regulatory import compute_flags
+from app.services.regulatory import compute_flags, flags_to_dicts
 from app.templating import templates
 
 router = APIRouter(tags=["edit"])
@@ -348,10 +348,15 @@ def edit_classification_step(
     answers = classification._answers_from(values)
     components = classification._components_from(values)
 
-    outcome = classification._classify(db, answers, components, known_contacts=_known_contacts(db))
+    # Signály se počítají PŘED voláním LLM — jdou do promptu jako allowlist
+    # kontext pro `signal_context` (spec kap. 5.4), stejně jako ve wizardu.
     minimum = compute_minimum(answers, components)
     flags = compute_flags(answers, components)
+    outcome = classification._classify(
+        db, answers, components, active_flags=flags, known_contacts=_known_contacts(db)
+    )
     navrh = effective_tier(outcome.llm_tier, minimum)
+    flags_data = flags_to_dicts(flags, outcome.signal_context)
 
     state["klasifikace"] = {
         "llm_tier": outcome.llm_tier.name if outcome.llm_tier else None,
@@ -359,7 +364,8 @@ def edit_classification_step(
         "fallback_used": outcome.fallback_used,
         "minimum_tier": minimum.tier.name,
         "navrh_tier": navrh.name,
-        "flags": [flag.to_dict() for flag in flags],
+        "flags": flags_data,
+        "signal_context": outcome.signal_context,
     }
     request.session[_wizard_key(application_id)] = state
 
@@ -368,7 +374,7 @@ def edit_classification_step(
         user,
         state,
         minimum,
-        flags,
+        flags_data,
         navrh,
         selected=navrh,
         action_url=f"/aplikace/{application_id}/upravit/klasifikace",
@@ -404,6 +410,10 @@ async def confirm_edit_classification(
 
     minimum = compute_minimum(answers, components)
     flags = compute_flags(answers, components)
+    # AI kontextová věta se znovu nevolá — použije se ta z klasifikačního
+    # kroku (session), stejně jako `llm_tier`/`zduvodneni` (spec kap. 5.4).
+    signal_context = (state.get("klasifikace") or {}).get("signal_context") or {}
+    flags_data = flags_to_dicts(flags, signal_context)
     llm_tier = _stored_llm_tier(state)
     navrh = effective_tier(llm_tier, minimum)
 
@@ -419,7 +429,7 @@ async def confirm_edit_classification(
 
     if manual is None:
         return _render_classification(
-            request, user, state, minimum, flags, navrh, navrh, poznamka,
+            request, user, state, minimum, flags_data, navrh, navrh, poznamka,
             error="Vyberte výsledný governance tier.",
             status_code=status.HTTP_400_BAD_REQUEST,
             **render_kwargs,
@@ -435,7 +445,7 @@ async def confirm_edit_classification(
         )
     except ManualBelowSuggestion as exc:
         return _render_classification(
-            request, user, state, minimum, flags, navrh, manual, poznamka,
+            request, user, state, minimum, flags_data, navrh, manual, poznamka,
             error=str(exc),
             status_code=status.HTTP_400_BAD_REQUEST,
             **render_kwargs,
@@ -443,7 +453,7 @@ async def confirm_edit_classification(
 
     if vysledny != navrh and not poznamka:
         return _render_classification(
-            request, user, state, minimum, flags, navrh, manual, poznamka,
+            request, user, state, minimum, flags_data, navrh, manual, poznamka,
             error="Při změně proti navrhovanému tieru je poznámka povinná.",
             status_code=status.HTTP_400_BAD_REQUEST,
             **render_kwargs,
@@ -470,7 +480,7 @@ async def confirm_edit_classification(
     application.klasifikace_minimum = minimum.tier
     application.klasifikace = vysledny
     application.klasifikace_zduvodneni = _compose_zduvodneni(state, minimum, llm_tier)
-    application.klasifikace_priznaky = [flag.to_dict() for flag in flags]
+    application.klasifikace_priznaky = flags_data
     application.klasifikace_potvrdil = user.username
     application.klasifikace_poznamka = poznamka or None
     application.review_required = False

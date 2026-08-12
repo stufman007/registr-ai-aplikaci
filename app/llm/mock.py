@@ -51,6 +51,8 @@ _PLACEHOLDER_RE = re.compile(r"\[(?:OSOBA|EMAIL|TEL)_\d+\]")
 _CANDIDATE_RE = re.compile(
     r"record_id:\s*(?P<id>[^\s|]+).*?skóre:\s*(?P<score>\d+(?:\.\d+)?)"
 )
+#: Zkratky aktivních signálů v bloku `{{SIGNALY}}` — viz `gateway._render_active_flags`.
+_SIGNAL_ZKRATKA_RE = re.compile(r"zkratka:\s*(?P<zkratka>[A-Z-]+)")
 
 # Kandidáti nad tímto skóre se v mocku považují za „skutečně podobné".
 _MOCK_MATCH_THRESHOLD = 0.6
@@ -89,6 +91,7 @@ class MockAdapter:
     def _classify(self, prompt: str) -> str:
         odpovedi = extract_data_block(prompt, "ODPOVEDI")
         komponenty = extract_data_block(prompt, "KOMPONENTY")
+        signaly = extract_data_block(prompt, "SIGNALY")
 
         score, citace = _score_answers(odpovedi)
         externi_api = "EXTERNI_API" in komponenty
@@ -97,9 +100,14 @@ class MockAdapter:
 
         tier = _tier_for_score(score)
         zduvodneni = _build_reasoning(tier, citace, externi_api, odpovedi)
+        signal_context = _build_signal_context(signaly, citace, odpovedi)
 
         return json.dumps(
-            {"klasifikace": tier.name, "zduvodneni": zduvodneni},
+            {
+                "klasifikace": tier.name,
+                "zduvodneni": zduvodneni,
+                "signal_context": signal_context,
+            },
             ensure_ascii=False,
         )
 
@@ -176,6 +184,25 @@ def _build_reasoning(
         vety.append(f"Účel použití zmiňuje kontaktní osobu {placeholders[0]}.")
 
     return " ".join(vety)
+
+
+def _build_signal_context(signaly_block: str, citace: list[str], odpovedi: str) -> dict[str, str]:
+    """Kontextová věta na signál — deterministická mock verze feature AI kontext
+    (spec kap. 5.4). Cituje stejné odpovědi jako `_build_reasoning`, aby demo
+    ukázalo záznam-specifický text bez API klíče. Placeholder z odpovědí (je-li)
+    se propíše do věty, aby šla ověřit deanonymizace v `gateway.classify`."""
+    zkratky = _SIGNAL_ZKRATKA_RE.findall(signaly_block)
+    if not zkratky:
+        return {}
+
+    citace_text = ", ".join(citace[:2]) if citace else "standardní odpovědi dotazníku"
+    veta = f"Kontext (mock): aplikace dle odpovědí {citace_text}."
+
+    placeholders = _PLACEHOLDER_RE.findall(odpovedi)
+    if placeholders:
+        veta += f" Kontaktní osoba ve zdroji: {placeholders[0]}."
+
+    return {zkratka: veta for zkratka in zkratky}
 
 
 def _estimate_tokens(text: str) -> int:

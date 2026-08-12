@@ -215,7 +215,10 @@ def test_uspesny_pruchod_zapise_tokeny(session, answers, components):
     assert row.tokens_out == 45
     assert row.provider == "fake"
     assert row.model == "fake-model-1"
-    assert row.prompt_version == "v1"
+    # Čte se ze souboru, ne hardcoded — ať test přežije budoucí bump
+    # `PROMPT_VERSION` v `prompts/classification.md`.
+    expected_prompt_version, _ = gateway._load_prompt("classification.md")
+    assert row.prompt_version == expected_prompt_version
     assert row.rules_version
 
 

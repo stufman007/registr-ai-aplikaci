@@ -1,15 +1,23 @@
 {# Partial: legislativní signály GDPR/AI-ACT/DORA (spec kap. 5.4).
    Očekává v kontextu:
-     flags — seznam dictů {zkratka, titulek, detail, reason_code, source}
+     flags — seznam dictů {zkratka, titulek, detail, reason_code, source, ai_kontext?}
              (uložených v `applications.klasifikace_priznaky`)
    Badge se zkratkou, hover tooltip s titulkem a detailem — čistě CSS, bez JS.
+   Existence a kostra signálu jsou 100% deterministické (`regulatory.compute_flags`).
+   `ai_kontext` je čistě doplňkový text — jedna věta od LLM vázaná na konkrétní
+   záznam (`app.llm.gateway.classify`), vizuálně odlišená v tooltipu. Klíč je
+   volitelný: starší záznamy i fallback bez LLM ho prostě nemají, tooltip pak
+   zobrazí jen deterministický detail (graceful degradation).
    Je-li signálů víc než `visible_count`, zbytek se schová do rozbalitelného
    <details>/<summary> (bez JS), stejný vzor jako u koncentrovaných komponent
    v _components.html. #}
 {% macro flag_badge(flag) %}
 <span class="tooltip badge-{{ flag.zkratka | lower }}">
   {{ flag.zkratka }}
-  <span class="tooltip__text"><strong>{{ flag.titulek }}</strong><br>{{ flag.detail }}</span>
+  <span class="tooltip__text">
+    <strong>{{ flag.titulek }}</strong><br>{{ flag.detail }}
+    {% if flag.ai_kontext %}<br><em class="ai-kontext">AI kontext: {{ flag.ai_kontext }}</em>{% endif %}
+  </span>
 </span>
 {% endmacro %}
 {% set visible_count = 3 %}

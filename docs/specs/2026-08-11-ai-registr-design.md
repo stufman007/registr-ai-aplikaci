@@ -281,6 +281,22 @@ Struktura: `{zkratka, titulek, detail, reason_code, source: "deterministic_rule"
 UI: **badge se zkratkou**, hover tooltip s titulkem a detailem. Signál = podnět
 k governance/legal review, ne právní závěr (disclaimer).
 
+**AI kontextová věta (doplněk, ne náhrada):** existence a kostra signálu je a
+zůstává 100% deterministická — LLM je nemůže vytvořit ani odstranit. Nad rámec
+toho ale `gateway.classify` pošle modelu seznam AKTIVNÍCH signálů (zkratka +
+reason_code + deterministický detail, spočtené `compute_flags` PŘED voláním
+LLM) a model smí ke KAŽDÉMU z nich vrátit jednu českou kontextovou větu
+vázanou na konkrétní záznam (structured output `signal_context: dict[str,
+str]`, klíč = zkratka). Validace přijme jen zkratky, které byly skutečně
+poslané jako aktivní (cizí/vymyšlená zkratka se zahodí), větu ořízne na max.
+délku a deanonymizuje až po validaci — stejný vzor jako `zduvodneni`. Selže-li
+LLM nebo větu nevrátí, signál se uloží beze změny (prázdný `signal_context`,
+graceful degradation) — kostra sama o sobě stačí. Uložení: `Flag.to_dict()`
+zůstává beze změny, dict v `klasifikace_priznaky` se obohatí o volitelný klíč
+`ai_kontext` až při skládání v route (`regulatory.flags_to_dicts`). UI:
+tooltip zobrazí deterministický detail a pod ním, jen pokud existuje,
+vizuálně odlišenou (kurzívou) AI kontextovou větu.
+
 ### 5.5 Lidská kontrola
 
 UI v klasifikačním kroku zobrazí vedle sebe: **AI návrh** · **policy minimum**

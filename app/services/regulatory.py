@@ -13,6 +13,7 @@ signály jsou podněty k review, ne právní verdikty.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from app.schemas import (
     DotaznikOdpovedi,
@@ -147,3 +148,28 @@ def compute_flags(
         )
 
     return flags
+
+
+def flags_to_dicts(
+    flags: list[Flag], signal_context: dict[str, str] | None = None
+) -> list[dict[str, Any]]:
+    """Serializuje `Flag` objekty pro `applications.klasifikace_priznaky`.
+
+    Kostra signálu (`Flag.to_dict()`) je čistě deterministická a beze změny.
+    `signal_context` (volitelné) je AI kontextová věta na signál, kterou LLM
+    vrátí navíc ke kostře (spec kap. 5.4) — dict `{zkratka: věta}`, sestavený
+    a validovaný v `app.llm.gateway.classify` (jen aktivní zkratky, ořezaná
+    délka, deanonymizovaná). Chybí-li věta pro danou zkratku (LLM ji nevrátil,
+    selhal, nebo `signal_context` není předaný vůbec), klíč `ai_kontext` se do
+    dictu vůbec nepřidá — graceful degradation, tooltip pak zobrazí jen
+    deterministický detail.
+    """
+    context = signal_context or {}
+    result: list[dict[str, Any]] = []
+    for flag in flags:
+        data = flag.to_dict()
+        veta = context.get(flag.zkratka)
+        if veta:
+            data["ai_kontext"] = veta
+        result.append(data)
+    return result

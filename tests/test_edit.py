@@ -101,6 +101,18 @@ def _fake_classify(tier: Tier) -> Any:
     return _call
 
 
+def _fake_classify_with_context(tier: Tier, signal_context: dict[str, str]) -> Any:
+    def _call(*_args: Any, **_kwargs: Any) -> ClassifyOutcome:
+        return ClassifyOutcome(
+            llm_tier=tier,
+            zduvodneni="Testovací zdůvodnění návrhu AI.",
+            fallback_used=False,
+            signal_context=signal_context,
+        )
+
+    return _call
+
+
 @pytest.fixture(autouse=True)
 def _stub_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(classification, "_classify", _fake_classify(Tier.MALA))
@@ -444,3 +456,33 @@ def test_risky_answer_change_requires_reclassification_before_save() -> None:
     assert updated.klasifikace is Tier.STREDNI
     assert updated.klasifikace_minimum is Tier.STREDNI
     assert updated.version == 2
+
+
+def test_ai_kontext_pretrva_z_klasifikacniho_kroku_do_ulozeni(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Re-klasifikace v editaci (spec kap. 5.4, 9): AI kontextová věta se
+    volá jen jednou (GET krok klasifikace) a při potvrzení (POST) se znovu
+    nevolá LLM — věta musí přežít v session a propsat se do uloženého
+    `klasifikace_priznaky`, stejně jako u zakládání nového záznamu."""
+    application = _seed_application(owner="jana.nova")
+    monkeypatch.setattr(
+        classification,
+        "_classify",
+        _fake_classify_with_context(
+            Tier.STREDNI, {"GDPR": "Tento záznam po úpravě zpracovává údaje klientů."}
+        ),
+    )
+    _login("jana.nova")
+
+    risky = _submit_edit(application, osobni_udaje="KLIENTU")
+    assert risky.status_code == 303
+    assert risky.headers["location"] == f"/aplikace/{application.id}/upravit/klasifikace"
+
+    client.get(f"/aplikace/{application.id}/upravit/klasifikace")
+    confirm = _confirm_classification(application.id, Tier.STREDNI.name)
+    assert confirm.status_code == 303
+
+    updated = _reload(application.id)
+    podle_zkratky = {flag["zkratka"]: flag for flag in updated.klasifikace_priznaky}
+    assert podle_zkratky["GDPR"]["ai_kontext"] == "Tento záznam po úpravě zpracovává údaje klientů."
