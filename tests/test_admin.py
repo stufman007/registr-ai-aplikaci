@@ -387,6 +387,33 @@ def test_reclassify_with_note_saves_new_tier_and_logs_history() -> None:
     assert classify_entries[0].reason == "Zvýšeno po review governance výboru."
 
 
+def test_reclassify_admin_can_lower_below_ai_suggestion() -> None:
+    """Regresní test hlášeného bugu: admin snižuje z VELKA (AI návrh) na
+    STREDNI (nad policy minimem MALA pro výchozí odpovědi). Dřív
+    `effective_tier` počítala `max(llm_tier, minimum, manual)`, takže se
+    ruční snížení tiše přebilo zpátky na VELKA — poznámka se uložila,
+    klasifikace ne. Teď se musí uložit skutečně snížená hodnota."""
+    application = _seed_application(
+        owner="jana.nova", klasifikace_llm=Tier.VELKA, klasifikace=Tier.VELKA
+    )
+    _login("admin.spravce", is_admin=True)
+
+    response = _reclassify(
+        application, Tier.STREDNI.name, poznamka="AI přecenila riziko, snižuji."
+    )
+    assert response.status_code == 303
+
+    updated = _reload(application.id)
+    assert updated.klasifikace is Tier.STREDNI
+    assert updated.klasifikace_poznamka == "AI přecenila riziko, snižuji."
+    assert updated.version == 2
+
+    classify_entries = [h for h in _history(application.id) if h.action is AuditAction.CLASSIFY]
+    assert len(classify_entries) == 1
+    assert classify_entries[0].stara_hodnota == "VELKA"
+    assert classify_entries[0].nova_hodnota == "STREDNI"
+
+
 def test_reclassify_without_note_is_rejected() -> None:
     application = _seed_application(owner="jana.nova")
     _login("admin.spravce", is_admin=True)

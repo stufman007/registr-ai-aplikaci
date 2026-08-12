@@ -153,17 +153,66 @@ class PolicyViolation(Exception):
         self.manual_tier = manual_tier
 
 
+class ManualBelowSuggestion(Exception):
+    """Běžný uživatel zkusil snížit tier pod navrhovanou hodnotu (spec kap. 5.5).
+
+    Návrh = `max(LLM, policy minimum)`. Běžný uživatel smí návrh jen potvrdit
+    nebo zvýšit — snížení (byť nad policy minimem) je vyhrazené adminovi,
+    protože AI návrh se může mýlit nahoru a jen admin smí to posoudit a
+    korigovat. Bez této výjimky by `effective_tier` tiché snížení buď tiše
+    přebilo zpět na návrh (starý bug), nebo ho tiše uložilo bez oprávnění —
+    obojí je špatně, proto explicitní chyba, kterou route vrátí jako 400.
+    """
+
+    def __init__(self, suggestion: Tier, manual_tier: Tier) -> None:
+        message = (
+            f"Snížení tieru pod navrhovanou hodnotu '{suggestion.label()}' smí "
+            f"provést jen administrátor. Vybraný tier: '{manual_tier.label()}'."
+        )
+        super().__init__(message)
+        self.suggestion = suggestion
+        self.manual_tier = manual_tier
+
+
 def effective_tier(
     llm_tier: Tier | None,
     minimum: MinimumResult,
     manual_tier: Tier | None = None,
+    *,
+    actor_is_admin: bool = False,
 ) -> Tier:
-    """Efektivní tier = max(návrh LLM, policy minimum, ruční hodnota).
+    """Efektivní tier (spec kap. 5.3 a 5.5).
 
-    Ruční snížení pod policy minimum je zakázáno — vyhodí `PolicyViolation`
-    místo tiché korekce, volající to musí vrátit jako 400/403.
+    Bez ruční hodnoty: návrh = `max(LLM, policy minimum)` — LLM samo o sobě
+    nikdy nesmí snížit tier pod policy floor.
+
+    Ruční hodnota pod policy minimum je zakázaná vždy, bez ohledu na roli:
+    vyhodí `PolicyViolation` — floor je jediná tvrdá hranice, kterou nesmí
+    obejít ani admin.
+
+    Ruční hodnota na/nad minimem se dál chová podle role, protože **AI není
+    zdroj pravdy** — je to jen podnět, který se může mýlit oběma směry:
+
+    - **admin**: výsledek = `max(minimum, manual_tier)`. Ruční volba admina
+      platí i pod AI návrhem (AI mohla navrhnout zbytečně vysoko) — jediná
+      tvrdá hranice, kterou nesmí podkročit, je policy floor.
+    - **běžný uživatel**: smí návrh jen potvrdit nebo zvýšit. Snížení pod
+      návrh vyhodí `ManualBelowSuggestion` — dřívější chování to tiše
+      přebilo zpátky na návrh (`max(...)` přes všechny tři hodnoty), takže
+      uživatel viděl uloženou poznámku, ale nesníženou klasifikaci.
     """
-    if manual_tier is not None and manual_tier < minimum.tier:
+    suggestion = max(llm_tier or Tier.MALA, minimum.tier)
+
+    if manual_tier is None:
+        return suggestion
+
+    if manual_tier < minimum.tier:
         raise PolicyViolation(minimum, manual_tier)
 
-    return max(llm_tier or Tier.MALA, minimum.tier, manual_tier or Tier.MALA)
+    if actor_is_admin:
+        return max(minimum.tier, manual_tier)
+
+    if manual_tier < suggestion:
+        raise ManualBelowSuggestion(suggestion, manual_tier)
+
+    return manual_tier

@@ -397,6 +397,32 @@ def test_component_change_sets_review_required_then_reclassification_clears_it()
     assert AuditAction.CLASSIFY in actions
 
 
+def test_admin_can_lower_tier_below_ai_suggestion_during_reclassification(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regresní test hlášeného bugu: re-klasifikace v editaci sdílí
+    `effective_tier` s wizardem zakládání (`app.routes.classification`) i s
+    admin překlasifikací (`app.routes.admin`) — admin tu musí umět snížit AI
+    návrh VELKA na STREDNI (nad minimem MALA), ne dostat ho tiše zpět."""
+    application = _seed_application(owner="jana.nova")
+    monkeypatch.setattr(classification, "_classify", _fake_classify(Tier.VELKA))
+    _login("admin.spravce", is_admin=True)
+
+    risky = _submit_edit(application, rozhodovani="DOPORUCUJE")
+    assert risky.status_code == 303
+    assert risky.headers["location"] == f"/aplikace/{application.id}/upravit/klasifikace"
+
+    client.get(f"/aplikace/{application.id}/upravit/klasifikace")
+    confirm = _confirm_classification(
+        application.id, Tier.STREDNI.name, poznamka="AI přecenila riziko, snižuji."
+    )
+    assert confirm.status_code == 303
+
+    updated = _reload(application.id)
+    assert updated.klasifikace is Tier.STREDNI
+    assert updated.klasifikace_poznamka == "AI přecenila riziko, snižuji."
+
+
 def test_risky_answer_change_requires_reclassification_before_save() -> None:
     application = _seed_application(owner="jana.nova")
     _login("jana.nova")

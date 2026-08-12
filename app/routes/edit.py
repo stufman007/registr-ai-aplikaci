@@ -53,7 +53,7 @@ from app.routes.classification import (
 from app.schemas import AuditAction, HostingType, Provider, Stav, Tier
 from app.security import VersionConflict, verify_csrf
 from app.services import history
-from app.services.policy import compute_minimum, effective_tier
+from app.services.policy import ManualBelowSuggestion, compute_minimum, effective_tier
 from app.services.regulatory import compute_flags
 from app.templating import templates
 
@@ -427,8 +427,19 @@ async def confirm_edit_classification(
 
     # Pořadí je záměrné (stejně jako u založení): policy floor se ověří dřív
     # než formulářová pravidla, aby ručně sestavený POST bez poznámky skončil
-    # na 400 z `PolicyViolation`.
-    vysledny = effective_tier(llm_tier, minimum, manual_tier=manual)
+    # na 400 z `PolicyViolation`. `actor_is_admin` rozlišuje, kdo smí snížit
+    # proti návrhu AI (spec kap. 5.5) — wizard tady slouží oběma rolím.
+    try:
+        vysledny = effective_tier(
+            llm_tier, minimum, manual_tier=manual, actor_is_admin=user.is_admin
+        )
+    except ManualBelowSuggestion as exc:
+        return _render_classification(
+            request, user, state, minimum, flags, navrh, manual, poznamka,
+            error=str(exc),
+            status_code=status.HTTP_400_BAD_REQUEST,
+            **render_kwargs,
+        )
 
     if vysledny != navrh and not poznamka:
         return _render_classification(

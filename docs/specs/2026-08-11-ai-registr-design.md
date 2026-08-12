@@ -248,8 +248,18 @@ Pravidla mají explicitní `RULES_VERSION` (např. `2026-08-v1`), ukládanou do 
 
 ```text
 klasifikace_minimum  = max(aktivovaná pravidla, MALA)
-klasifikace          = max(klasifikace_llm, klasifikace_minimum, ruční zvýšení)
+navrh                = max(klasifikace_llm, klasifikace_minimum)
+klasifikace          = navrh                                    # bez ruční změny
+klasifikace          = max(klasifikace_minimum, ruční hodnota)  # ruční změna admina
+klasifikace          = ruční hodnota, pokud >= navrh             # ruční změna uživatele
 ```
+
+`max(...)` platí jen dokud klasifikaci nikdo ručně nemění. Jakmile člověk zadá
+ruční hodnotu, floor (`klasifikace_minimum`) zůstává jediná tvrdá hranice, ale
+admin ji smí uplatnit i *pod* AI návrhem — AI návrh je jen podnět, ne zdroj
+pravdy. Běžný uživatel smí návrh jen potvrdit nebo zvýšit; ruční snížení proti
+návrhu (i nad minimem) backend od něj odmítne, aby se neshodovalo tiše přebít
+zpátky na `max(...)`.
 
 Navrhne-li LLM méně než minimum, aplikace tier zvedne a do zdůvodnění doplní, které
 pravidlo (reason code) eskalaci způsobilo. Odpověď na „proč zrovna takto" u pohovoru:

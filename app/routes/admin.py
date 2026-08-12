@@ -318,7 +318,14 @@ async def reclassify_submit(
     # ověří dřív než formulářová pravidla, aby ručně sestavený POST bez
     # poznámky skončil na 400 z `PolicyViolation`, ne na chybě „poznámka
     # chybí" — pod minimum nejde uložit ani s poznámkou.
-    vysledny = effective_tier(llm_tier, minimum, manual_tier=manual)
+    #
+    # `actor_is_admin=True` je tu zásadní (regresní bug): bez něj by
+    # `effective_tier` počítala max(llm_tier, minimum, manual) a ruční
+    # snížení admina pod AI návrh (ale nad minimem) by se tiše přebilo zpět
+    # nahoru — přesně reportovaný bug VELKÁ→STŘEDNÍ.
+    vysledny = effective_tier(
+        llm_tier, minimum, manual_tier=manual, actor_is_admin=True
+    )
 
     if not poznamka:
         return _render_reclassify(

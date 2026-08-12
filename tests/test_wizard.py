@@ -80,10 +80,11 @@ def _clean_session() -> None:
     client.cookies.clear()
 
 
-def _login(username: str = "jana.nova") -> None:
+def _login(username: str = "jana.nova", is_admin: bool = False) -> None:
+    roles = ["user", "admin"] if is_admin else ["user"]
     response = client.post(
         "/_test/wizard/session-login",
-        json={"username": username, "email": f"{username}@example.com", "roles": ["user"]},
+        json={"username": username, "email": f"{username}@example.com", "roles": roles},
     )
     assert response.status_code == 200
 
@@ -360,6 +361,49 @@ def test_note_is_required_when_tier_differs_from_suggestion() -> None:
     record = _applications()[0]
     assert record.klasifikace is Tier.VELKA
     assert record.klasifikace_poznamka == "Nástroj poroste do rizikovější oblasti."
+
+
+def test_user_manual_tier_below_suggestion_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regresní scénář z hlášení bugu: AI navrhne VELKA (minimum je jen MALA),
+    běžný user se pokusí ručně sestaveným POSTem snížit na STREDNI. Dřív se
+    snížení tiše přebilo zpět na VELKA (poznámka se uložila, klasifikace ne);
+    teď musí backend vrátit 400 a záznam vůbec nevznikne."""
+    monkeypatch.setattr(classification, "_classify", _fake_classify(Tier.VELKA))
+    _login()
+    _submit_form()
+
+    client.get("/aplikace/nova/klasifikace")
+    response = _save(Tier.STREDNI.name, poznamka="Chci to níž.")
+    assert response.status_code == 400
+    assert "administrátor" in response.text
+    assert _applications() == []
+
+
+def test_admin_manual_tier_below_suggestion_is_saved_in_wizard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regresní test hlášeného bugu v samotném wizardu: admin sníží AI návrh
+    VELKA na STREDNI (nad policy minimem MALA) — musí se uložit snížená
+    hodnota, ne tiše zůstat VELKA."""
+    monkeypatch.setattr(classification, "_classify", _fake_classify(Tier.VELKA))
+    _login("admin.spravce", is_admin=True)
+    _submit_form()
+
+    client.get("/aplikace/nova/klasifikace")
+    saved = _save(Tier.STREDNI.name, poznamka="AI přecenila riziko, snižuji.")
+    assert saved.status_code == 303
+
+    record = _applications()[0]
+    assert record.klasifikace is Tier.STREDNI
+    assert record.klasifikace_poznamka == "AI přecenila riziko, snižuji."
+
+    classify_entries = [
+        entry for entry in _history(record.id) if entry.action is AuditAction.CLASSIFY
+    ]
+    assert len(classify_entries) == 1
+    assert classify_entries[0].nova_hodnota == "STREDNI"
 
 
 # --- duplicity ---------------------------------------------------------------

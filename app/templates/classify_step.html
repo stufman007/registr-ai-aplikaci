@@ -55,6 +55,11 @@
       <p class="note">
         Navrhováno: <strong>{{ navrh.label() }}</strong>. Snížit pod minimum nelze.
       </p>
+      {% if user.is_admin %}
+      <p class="note">
+        Jako admin můžete snížit až k povinnému minimu, i pod návrh AI.
+      </p>
+      {% endif %}
       <label class="field">
         Potvrzený tier
         <select name="tier">

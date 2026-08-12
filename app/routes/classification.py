@@ -15,6 +15,10 @@ Bezpečnostní invarianty tohoto modulu:
   nebere hodnota ze session (session je klientská cookie, byť podepsaná).
 - Ruční tier pod minimum vyhodí `PolicyViolation` → 400 (handler v `app.main`),
   a to i při ručně sestaveném POSTu mimo UI.
+- Ruční snížení proti navrhovanému tieru (i nad minimem) smí jen admin —
+  `effective_tier(..., actor_is_admin=user.is_admin)` u ne-admina vyhodí
+  `ManualBelowSuggestion`, kterou tato route chytá a vrací jako 400 s
+  formulářovou chybou (spec kap. 5.5).
 - Každý POST má `Depends(verify_csrf)`.
 """
 
@@ -46,7 +50,12 @@ from app.schemas import (
 )
 from app.security import verify_csrf
 from app.services import history
-from app.services.policy import MinimumResult, compute_minimum, effective_tier
+from app.services.policy import (
+    ManualBelowSuggestion,
+    MinimumResult,
+    compute_minimum,
+    effective_tier,
+)
 from app.services.regulatory import Flag, compute_flags
 from app.services.similarity import top_candidates
 from app.templating import templates
@@ -518,8 +527,14 @@ def _render_classification(
             "flags": flags,
             "navrh": navrh,
             "selected": selected,
-            # Nabízí se jen tiery >= minimum; backend to stejně validuje znovu.
-            "tier_options": [t for t in Tier if t >= minimum.tier],
+            # Ne-admin smí jen potvrdit/zvýšit návrh, admin celý rozsah nad
+            # minimem (spec kap. 5.5). Backend to při uložení validuje znovu
+            # přes `effective_tier(actor_is_admin=...)`, tohle je jen UI filtr.
+            "tier_options": (
+                [t for t in Tier if t >= minimum.tier]
+                if user.is_admin
+                else [t for t in Tier if t >= navrh]
+            ),
             "poznamka": poznamka,
             "error": error,
             "duplicate_reason": state.get("duplicate_reason") or "",
@@ -612,7 +627,18 @@ async def save_new_application(
 
     # Pořadí je záměrné: policy floor se ověří dřív než formulářová pravidla,
     # aby ručně sestavený POST bez poznámky skončil na 400 z `PolicyViolation`.
-    vysledny = effective_tier(llm_tier, minimum, manual_tier=manual)
+    # `actor_is_admin` rozlišuje, kdo smí snížit proti návrhu AI (spec kap.
+    # 5.5) — ne-admin dostane `ManualBelowSuggestion` místo tiché korekce.
+    try:
+        vysledny = effective_tier(
+            llm_tier, minimum, manual_tier=manual, actor_is_admin=user.is_admin
+        )
+    except ManualBelowSuggestion as exc:
+        return _render_classification(
+            request, user, state, minimum, flags, navrh, manual, poznamka,
+            error=str(exc),
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
 
     if vysledny != navrh and not poznamka:
         return _render_classification(

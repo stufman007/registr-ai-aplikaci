@@ -26,6 +26,7 @@ from app.schemas import (
     ViditelnostVystupu,
 )
 from app.services.policy import (
+    ManualBelowSuggestion,
     PolicyViolation,
     compute_minimum,
     effective_tier,
@@ -186,3 +187,50 @@ def test_rucni_snizeni_pod_minimum_vyhodi_policy_violation() -> None:
 def test_effective_tier_bez_llm_a_bez_pravidel_je_mala() -> None:
     minimum = compute_minimum(nevinne_odpovedi(), interni_komponenta())
     assert effective_tier(None, minimum) == Tier.MALA
+
+
+# --- actor_is_admin: regresní bug (VELKÁ→STŘEDNÍ se tiše nepřebije zpět) ---
+
+
+def test_admin_smi_snizit_pod_ai_navrh_nad_minimem() -> None:
+    """Regresní test hlášeného bugu: AI navrhne VELKA, minimum je MALA, admin
+    ručně sníží na STREDNI. Dřív `effective_tier` počítala
+    `max(llm_tier, minimum, manual)`, takže se snížení tiše přebilo zpět na
+    VELKA — teď musí platit admin volba."""
+    minimum = compute_minimum(nevinne_odpovedi(), interni_komponenta())
+    assert minimum.tier == Tier.MALA
+    vysledek = effective_tier(
+        Tier.VELKA, minimum, manual_tier=Tier.STREDNI, actor_is_admin=True
+    )
+    assert vysledek == Tier.STREDNI
+
+
+def test_admin_snizeni_pod_minimum_stale_vyhazuje_policy_violation() -> None:
+    minimum = compute_minimum(
+        nevinne_odpovedi(osobni_udaje=OsobniUdaje.KLIENTU), interni_komponenta()
+    )
+    assert minimum.tier == Tier.STREDNI
+    with pytest.raises(PolicyViolation):
+        effective_tier(
+            Tier.VELKA, minimum, manual_tier=Tier.MALA, actor_is_admin=True
+        )
+
+
+def test_uzivatel_snizeni_pod_navrh_vyhazuje_manual_below_suggestion() -> None:
+    """Ne-admin smí návrh (`max(LLM, minimum)`) jen potvrdit nebo zvýšit."""
+    minimum = compute_minimum(nevinne_odpovedi(), interni_komponenta())
+    assert minimum.tier == Tier.MALA
+    with pytest.raises(ManualBelowSuggestion) as exc_info:
+        effective_tier(
+            Tier.VELKA, minimum, manual_tier=Tier.STREDNI, actor_is_admin=False
+        )
+    assert exc_info.value.suggestion == Tier.VELKA
+    assert exc_info.value.manual_tier == Tier.STREDNI
+
+
+def test_uzivatel_zvyseni_nad_navrh_je_povoleno() -> None:
+    minimum = compute_minimum(nevinne_odpovedi(), interni_komponenta())
+    vysledek = effective_tier(
+        Tier.MALA, minimum, manual_tier=Tier.VELKA, actor_is_admin=False
+    )
+    assert vysledek == Tier.VELKA
